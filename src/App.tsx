@@ -19,6 +19,7 @@ const FLOW_NODE_WIDTH = 154
 const FLOW_NODE_HEIGHT = 70
 const FLOW_EDGE_GAP = 8
 const FLOW_EDGE_FAN = 18
+const FLOW_EDGE_BAND_GAP = 24
 const FLOW_CROSS_CHANNEL_GAP = 10
 const FLOW_CROSS_TRACK_GAP = 22
 const FLOW_EDGE_CURVE_THRESHOLD = 96
@@ -65,6 +66,16 @@ function buildFlowLayout(visibleBooks?: Book[]): FlowLayout {
 
 function isDirectionalConnection(kind: Connection['kind']) {
   return kind === 'sequel' || kind === 'recommended' || kind === 'prerequisite'
+}
+
+function isPrimaryConnection(kind: Connection['kind']) {
+  return kind === 'sequel'
+}
+
+function flowEdgeBandOffset(kind: Connection['kind']) {
+  if (isPrimaryConnection(kind)) return 0
+  if (kind === 'recommended' || kind === 'prerequisite') return -FLOW_EDGE_BAND_GAP
+  return FLOW_EDGE_BAND_GAP
 }
 
 function orderFlowBooks(arcBooks: Book[]) {
@@ -383,18 +394,21 @@ function FlowMapCanvas({
       if (!tracks.includes(lanePairKey)) crossLaneTracks.set(corridorKey, [...tracks, lanePairKey])
     }
   })
-  const edgeRoutes = new globalThis.Map<string, FlowEdgeRoute>(visibleConnections.map((edge, index) => {
+  const edgeRoutes = new globalThis.Map<string, FlowEdgeRoute>(visibleConnections.map((edge) => {
     const sameRow = positions[edge.from]?.y === positions[edge.to]?.y
     const outgoing = sameRow ? sameRowOutgoing : crossLaneOutgoing
     const incoming = sameRow ? sameRowIncoming : crossLaneIncoming
     const sourceTargets = outgoing.get(edge.from) || []
     const targetSources = incoming.get(edge.to) || []
-    const sourceOffset = sameRow && isDirectionalConnection(edge.kind)
-      ? 0
-      : centredOffset(sourceTargets.indexOf(edge.to), sourceTargets.length, FLOW_EDGE_FAN)
-    const targetOffset = sameRow && isDirectionalConnection(edge.kind)
-      ? 0
-      : centredOffset(targetSources.indexOf(edge.from), targetSources.length, FLOW_EDGE_FAN)
+    const sourceFanOffset = centredOffset(sourceTargets.indexOf(edge.to), sourceTargets.length, FLOW_EDGE_FAN)
+    const targetFanOffset = centredOffset(targetSources.indexOf(edge.from), targetSources.length, FLOW_EDGE_FAN)
+    const bandOffset = flowEdgeBandOffset(edge.kind)
+    const sourceOffset = sameRow
+      ? isPrimaryConnection(edge.kind) ? 0 : bandOffset + sourceFanOffset
+      : sourceFanOffset
+    const targetOffset = sameRow
+      ? isPrimaryConnection(edge.kind) ? 0 : bandOffset + targetFanOffset
+      : targetFanOffset
     const corridorKey = !sameRow && positions[edge.from] && positions[edge.to]
       ? flowCorridorKey(positions[edge.from], positions[edge.to])
       : ''
@@ -407,8 +421,8 @@ function FlowMapCanvas({
       ? 0
       : centredOffset(trackKeys.indexOf(lanePairKey), trackKeys.length, FLOW_CROSS_TRACK_GAP)
     const channelOffset = sameRow
-      ? sourceOffset + targetOffset * 0.7 + (index % 3 - 1) * 4
-      : trackOffset + centredOffset(channelEdges.indexOf(`${edge.from}:${edge.to}`), channelEdges.length, FLOW_CROSS_CHANNEL_GAP)
+      ? 0
+      : bandOffset + trackOffset + centredOffset(channelEdges.indexOf(`${edge.from}:${edge.to}`), channelEdges.length, FLOW_CROSS_CHANNEL_GAP)
     return [`${edge.from}:${edge.to}`, {
       sourceOffset,
       targetOffset,
@@ -417,7 +431,7 @@ function FlowMapCanvas({
   }))
   return (
     <div className={`flow-canvas-shell flow-${mode}`}>
-      <div className="flow-canvas-key" role="note" aria-label="Connection key"><span className="flow-key-direction">Colour follows the source arc · arrowheads mark destinations · select a book to highlight its links</span><span className="flow-key-item"><span className="connection-key-line primary" />Main storyline</span><span className="flow-key-item"><span className="connection-key-line solid" />Branch / suggested</span><span className="flow-key-item"><span className="connection-key-line dashed" />Related / no order</span></div>
+      <div className="flow-canvas-key" role="note" aria-label="Connection key"><span className="flow-key-direction">Corridors separate relationship types · colour follows the source arc · select a book to highlight its links</span><span className="flow-key-item"><span className="connection-key-line primary" />Main storyline</span><span className="flow-key-item"><span className="connection-key-line solid" />Branch / suggested</span><span className="flow-key-item"><span className="connection-key-line dashed" />Related / no order</span></div>
       <svg className="flow-canvas" style={{ width: `${flowWidth}px`, height: `${flowHeight}px` }} viewBox={`0 0 ${flowWidth} ${flowHeight}`} aria-hidden="true">
         <defs>
           {Object.entries(arcMeta).map(([arc, meta]) => <g key={arc}>
@@ -461,7 +475,7 @@ function FlowMapCanvas({
           {visibleBooks.map((book) => <FlowBookNode key={book.id} book={book} position={positions[book.id] || { x: 20, y: 20 }} mode={mode} selected={selectedId === book.id} readIds={readIds} currentId={currentId} recommended={recommendedIds.has(book.id)} onSelect={onSelect} />)}
         </g>
       </svg>
-      <div className="flow-canvas-note">{mode === 'reference' ? 'Bold arrows carry the main storyline into the destination card. Dashed lines connect related books without prescribing an order.' : 'Bold arrows carry the main storyline into the destination. Dashed lines connect related books without prescribing an order.'}</div>
+      <div className="flow-canvas-note">Mainline edges stay on the central route. Branch links use the near corridor; dashed related links use the outer corridor.</div>
       <div className="map-accessible-list" aria-label="Books in the campaign map">
         <h2 className="sr-only">Campaign books</h2>
         <p className="sr-only">Use this keyboard-accessible list to inspect a book without navigating the visual map.</p>
