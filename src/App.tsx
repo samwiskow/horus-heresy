@@ -17,6 +17,9 @@ const MAP_WIDTH = 1680
 const MAP_HEIGHT = 1500
 const FLOW_NODE_WIDTH = 154
 const FLOW_NODE_HEIGHT = 70
+const FLOW_EDGE_GAP = 8
+const FLOW_EDGE_FAN = 12
+const FLOW_EDGE_CURVE_THRESHOLD = 96
 const knownBookIds = new Set(books.map((book) => book.id))
 
 type FlowPosition = { x: number; y: number }
@@ -222,14 +225,36 @@ function MapCanvas({
   )
 }
 
-function flowEdgePath(from: FlowPosition, to: FlowPosition) {
+function centredOffset(index: number, count: number, spacing: number) {
+  return (index - (count - 1) / 2) * spacing
+}
+
+type FlowEdgeRoute = {
+  sourceOffset: number
+  targetOffset: number
+  channelOffset: number
+}
+
+function flowEdgePath(from: FlowPosition, to: FlowPosition, route: FlowEdgeRoute) {
   const movesRight = to.x >= from.x
-  const startX = movesRight ? from.x + FLOW_NODE_WIDTH : from.x
-  const endX = movesRight ? to.x : to.x + FLOW_NODE_WIDTH
-  const startY = from.y + FLOW_NODE_HEIGHT / 2
-  const endY = to.y + FLOW_NODE_HEIGHT / 2
-  const bendX = startX + (endX - startX) * 0.5
-  return `M ${startX} ${startY} H ${bendX} V ${endY} H ${endX}`
+  const direction = movesRight ? 1 : -1
+  const startX = movesRight ? from.x + FLOW_NODE_WIDTH + FLOW_EDGE_GAP : from.x - FLOW_EDGE_GAP
+  const endX = movesRight ? to.x - FLOW_EDGE_GAP : to.x + FLOW_NODE_WIDTH + FLOW_EDGE_GAP
+  const startY = from.y + FLOW_NODE_HEIGHT / 2 + route.sourceOffset
+  const endY = to.y + FLOW_NODE_HEIGHT / 2 + route.targetOffset
+  const bendX = startX + (endX - startX) * 0.5 + route.channelOffset
+
+  if (from.y === to.y) {
+    if (Math.abs(endX - startX) <= FLOW_EDGE_CURVE_THRESHOLD && startY === endY) {
+      return `M ${startX} ${startY} H ${endX}`
+    }
+    const offset = (route.sourceOffset + route.targetOffset) / 2
+    return `M ${startX} ${startY} C ${startX + direction * 42} ${startY + offset}, ${endX - direction * 42} ${endY + offset}, ${endX} ${endY}`
+  }
+
+  const launchX = startX + direction * 32
+  const approachX = endX - direction * 32
+  return `M ${startX} ${startY} C ${launchX} ${startY}, ${bendX - direction * 32} ${startY}, ${bendX} ${startY} V ${endY} C ${bendX} ${endY}, ${approachX} ${endY}, ${endX} ${endY}`
 }
 
 function FlowBookNode({ book, position, mode, selected, readIds, currentId, recommended, onSelect }: {
@@ -274,33 +299,50 @@ function FlowBookNode({ book, position, mode, selected, readIds, currentId, reco
 }
 
 function FlowMapCanvas({
-  mode, selectedId, currentId, readIds, visibleBooks, routeIds, recommendedIds, onSelect,
+  mode, selectedId, currentId, readIds, visibleBooks, recommendedIds, onSelect,
 }: {
   mode: Exclude<MapMode, 'tactical'>
   selectedId: string | null
   currentId: string
   readIds: Set<string>
   visibleBooks: Book[]
-  routeIds: Set<string>
   recommendedIds: Set<string>
   onSelect: (book: Book) => void
 }) {
   const { positions, width: flowWidth, height: flowHeight, rows } = buildFlowLayout(visibleBooks)
   const visibleIds = new Set(visibleBooks.map((book) => book.id))
   const visibleConnections = connections.filter((edge) => visibleIds.has(edge.from) && visibleIds.has(edge.to))
+  const outgoing = new globalThis.Map<string, string[]>()
+  const incoming = new globalThis.Map<string, string[]>()
+  visibleConnections.forEach((edge) => {
+    outgoing.set(edge.from, [...(outgoing.get(edge.from) || []), edge.to])
+    incoming.set(edge.to, [...(incoming.get(edge.to) || []), edge.from])
+  })
+  const edgeRoutes = new globalThis.Map<string, FlowEdgeRoute>(visibleConnections.map((edge, index) => {
+    const sourceTargets = outgoing.get(edge.from) || []
+    const targetSources = incoming.get(edge.to) || []
+    const sourceOffset = centredOffset(sourceTargets.indexOf(edge.to), sourceTargets.length, FLOW_EDGE_FAN)
+    const targetOffset = centredOffset(targetSources.indexOf(edge.from), targetSources.length, FLOW_EDGE_FAN)
+    return [`${edge.from}:${edge.to}`, {
+      sourceOffset,
+      targetOffset,
+      channelOffset: sourceOffset + targetOffset * 0.7 + (index % 3 - 1) * 4,
+    }] as const
+  }))
   return (
     <div className={`flow-canvas-shell flow-${mode}`}>
+      <div className="flow-canvas-key" role="note" aria-label="Connection key"><span className="flow-key-direction">One-way arrows → destination</span><span className="flow-key-item"><span className="connection-key-line solid" />Solid direct / suggested</span><span className="flow-key-item"><span className="connection-key-line dashed" />Dashed parallel / optional</span></div>
       <svg className="flow-canvas" style={{ width: `${flowWidth}px`, height: `${flowHeight}px` }} viewBox={`0 0 ${flowWidth} ${flowHeight}`} aria-hidden="true">
         <defs>
-          <marker id={`flow-arrow-${mode}`} markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-            <path d="M 0 0 L 7 3 L 0 6 Z" />
+          <marker id={`flow-arrow-${mode}`} markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+            <path d="M 0 0 L 8 4 L 0 8 Z" />
           </marker>
         </defs>
         <rect className="flow-surface" width={flowWidth} height={flowHeight} />
         {mode === 'reference' ? (
           <g className="flow-reference-guides">
             <text className="flow-title" x="45" y="33">HORUS HERESY / READING ORDER</text>
-            <text className="flow-direction" x={flowWidth - 35} y="33">SUGGESTED PROGRESSION →</text>
+            <text className="flow-direction" x={flowWidth - 35} y="33">ARROWHEADS DEFINE DIRECTION</text>
             {Array.from({ length: Math.ceil(flowWidth / 380) - 1 }, (_, index) => <line key={index} x1={380 + index * 380} y1="55" x2={380 + index * 380} y2={flowHeight - 55} />)}
             <line x1="28" y1="55" x2={flowWidth - 28} y2="55" />
             {rows.map((row) => <g key={row.id}><line x1="28" y1={row.y + 58} x2={flowWidth - 28} y2={row.y + 58} /><text className="flow-column-label" x="38" y={row.y - 43}>{row.label}</text></g>)}
@@ -308,7 +350,7 @@ function FlowMapCanvas({
         ) : (
           <g className="flow-lane-guides">
             <text className="flow-title" x="28" y="33">ARC LANES / STORY ARCS</text>
-            <text className="flow-direction" x={flowWidth - 35} y="33">OPENING → TERRA</text>
+            <text className="flow-direction" x={flowWidth - 35} y="33">ARROWHEADS DEFINE DIRECTION</text>
             {rows.map((row) => <g key={row.id}><rect className="flow-lane-band" x="20" y={row.y - 58} width={flowWidth - 40} height="116" rx="5" style={{ '--lane-colour': row.colour } as CSSProperties} /><line className="flow-lane-rule" x1={FLOW_LEFT - 20} y1={row.y} x2={flowWidth - 30} y2={row.y} /><text className="flow-lane-label" x="38" y={row.y - 13}>{row.label}</text><text className="flow-lane-sub" x="38" y={row.y + 8}>{row.id === 'opening' ? 'ENTRY ROUTE' : row.id === 'siege' ? 'FINAL APPROACH' : 'BRANCH'}</text></g>)}
           </g>
         )}
@@ -317,16 +359,15 @@ function FlowMapCanvas({
             const from = positions[edge.from]
             const to = positions[edge.to]
             if (!from || !to) return null
-            const active = routeIds.has(edge.from) || routeIds.has(edge.to) || edge.from === currentId
-            return <path key={`${edge.from}-${edge.to}`} className={`flow-edge ${active ? 'active' : ''} ${edge.kind}`} d={flowEdgePath(from, to)} markerEnd={`url(#flow-arrow-${mode})`} />
+            const active = edge.from === currentId || edge.to === currentId || edge.from === selectedId || edge.to === selectedId
+            return <path key={`${edge.from}-${edge.to}`} className={`flow-edge ${active ? 'active' : ''} ${edge.kind}`} d={flowEdgePath(from, to, edgeRoutes.get(`${edge.from}:${edge.to}`) || { sourceOffset: 0, targetOffset: 0, channelOffset: 0 })} markerEnd={`url(#flow-arrow-${mode})`} />
           })}
         </g>
         <g className="flow-nodes">
           {visibleBooks.map((book) => <FlowBookNode key={book.id} book={book} position={positions[book.id] || { x: 20, y: 20 }} mode={mode} selected={selectedId === book.id} readIds={readIds} currentId={currentId} recommended={recommendedIds.has(book.id)} onSelect={onSelect} />)}
         </g>
       </svg>
-      <div className="flow-canvas-key" role="note" aria-label="Connection key"><span className="flow-key-direction">Arrowheads point toward a possible next read</span><span className="flow-key-item"><span className="connection-key-line solid" />Solid direct / suggested</span><span className="flow-key-item"><span className="connection-key-line dashed" />Dashed parallel / optional</span></div>
-      <div className="flow-canvas-note">{mode === 'reference' ? 'Orthogonal connectors keep the branching structure visible at a glance.' : 'Each lane is an arc; left-to-right order shows the pressure moving toward Terra.'}</div>
+      <div className="flow-canvas-note">{mode === 'reference' ? 'Fanned connectors keep branching paths distinct; arrowheads mark destinations.' : 'Each lane is an arc; arrowheads define direction when a branch crosses lanes.'}</div>
       <div className="map-accessible-list" aria-label="Books in the campaign map">
         <h2 className="sr-only">Campaign books</h2>
         <p className="sr-only">Use this keyboard-accessible list to inspect a book without navigating the visual map.</p>
@@ -407,9 +448,9 @@ function MapView({ mode, onModeChange, currentId, selectedId, readIds, search, a
         <label className="toggle-row"><span><Compass size={15} />Show reachable route</span><input type="checkbox" checked={routeOnly} onChange={(event) => onRouteOnly(event.target.checked)} /><span className="toggle-track" /></label>
         <div className="rail-note"><Target size={15} /><p><strong>Current position</strong><br />{bookById[currentId].title}</p></div>
         <div className="legend"><span className="panel-kicker">STATUS LEGEND</span><div><span className="legend-dot current" />Current</div><div><span className="legend-dot read" />Read</div><div><span className="legend-dot next" />Recommended next</div></div>
-        <div className="connection-key"><span className="panel-kicker">CONNECTION KEY</span><div className="connection-key-item"><span className="connection-key-line solid" /><span><strong>Solid arrow</strong><small>direct continuation / suggested route</small></span></div><div className="connection-key-item"><span className="connection-key-line dashed" /><span><strong>Dashed arrow</strong><small>parallel or optional branch</small></span></div><p>Arrows point toward a possible next read. Branches stay visible so you can choose your own route.</p></div>
+        <div className="connection-key"><span className="panel-kicker">CONNECTION KEY</span><div className="connection-key-item"><span className="connection-key-line solid" /><span><strong>Solid arrow</strong><small>direct continuation / suggested route</small></span></div><div className="connection-key-item"><span className="connection-key-line dashed" /><span><strong>Dashed arrow</strong><small>parallel or optional branch</small></span></div><p>Every arrow is one-way. The arrowhead marks the destination; branches stay visible so you can choose your own route.</p></div>
       </aside>
-      <section className="map-stage">{mode === 'tactical' ? <MapCanvas selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} routeIds={routeIds} recommendedIds={recommendedIds} onSelect={onSelect} /> : <FlowMapCanvas key={mode} mode={mode} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} routeIds={routeIds} recommendedIds={recommendedIds} onSelect={onSelect} />}<div className="map-footer"><span><span className="footer-line teal" />Suggested route</span><span><span className="footer-line" />Parallel / optional</span><span className="footer-note">{mode === 'tactical' ? 'Arrows point toward a possible next read · drag to pan · scroll to zoom' : 'Arrows point toward a possible next read · select a book to inspect'}</span></div></section>
+      <section className="map-stage">{mode === 'tactical' ? <MapCanvas selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} routeIds={routeIds} recommendedIds={recommendedIds} onSelect={onSelect} /> : <FlowMapCanvas key={mode} mode={mode} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} recommendedIds={recommendedIds} onSelect={onSelect} />}<div className="map-footer"><span><span className="footer-line teal" />Suggested route</span><span><span className="footer-line" />Parallel / optional</span><span className="footer-note">{mode === 'tactical' ? 'One-way arrows mark the destination · drag to pan · scroll to zoom' : 'One-way arrows mark the destination · select a book to inspect'}</span></div></section>
       <aside className="inspector">
         {selected ? <BookDetail book={selected} readIds={readIds} currentId={currentId} onClose={() => onSelect(null)} onRead={onRead} onCurrent={onCurrent} /> : <RecommendationPanel recommendation={recommendations[0]} recommendations={recommendations} onSelect={onSelect} onRead={onRead} onCurrent={onCurrent} />}
         {!selected && <div className="inspector-divider"><span />YOUR ROUTE<span /></div>}
