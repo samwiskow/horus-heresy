@@ -222,12 +222,17 @@ main { max-width: 1700px; margin: 0 auto; padding: 40px 34px 70px; }
 .map-canvas:active { cursor: grabbing; }
 .map-axis-label { fill: var(--map-axis); font-family: var(--font-mono); font-size: var(--type-label); letter-spacing: .13em; }
 .map-axis { stroke: var(--map-grid); stroke-width: 1; }
-.map-edge { fill: none; stroke: var(--map-edge); stroke-width: 2.2; opacity: 1; stroke-linecap: round; transition: stroke .2s ease; }
+.map-edge { fill: none; stroke: var(--map-edge); stroke-width: 2.2; opacity: 1; stroke-linecap: round; transition: stroke .2s ease, opacity .2s ease, filter .2s ease; }
 .map-edge.sequel { stroke-width: 3.4; }
 .map-edge.active { stroke: var(--teal); stroke-width: 3; }
 .map-edge.active.sequel { stroke-width: 4.2; }
+.map-edge.focused { stroke-width: 4.4; filter: drop-shadow(0 2px 3px rgba(85, 184, 176, .45)); }
+.map-edge.focused.sequel { stroke-width: 5.8; }
+.map-edge.dimmed { opacity: .14; }
 .map-edge.optional, .map-edge.parallel { stroke-dasharray: 2 6; }
-.map-node { cursor: pointer; outline: none; }
+.map-node { cursor: pointer; outline: none; transition: opacity .2s ease; }
+.map-node.dimmed { opacity: .22; }
+.node-focus-ring { fill: none; stroke: var(--gold); stroke-width: 2; stroke-dasharray: 4 4; opacity: .9; filter: drop-shadow(0 2px 3px rgba(210, 168, 94, .25)); pointer-events: none; }
 .node-plate { fill: var(--node-surface); stroke: var(--node-stroke); stroke-width: 1; transition: fill .2s ease, stroke .2s ease, filter .2s ease; }
 .map-node:hover .node-plate, .map-node:focus .node-plate { fill: var(--node-hover); stroke: var(--node-hover-stroke); }
 .map-node.selected .node-plate { fill: var(--node-selected); stroke: var(--gold); stroke-width: 2; filter: drop-shadow(0 0 8px rgba(210, 168, 94, .15)); }
@@ -274,14 +279,20 @@ main { max-width: 1700px; margin: 0 auto; padding: 40px 34px 70px; }
 .flow-lane-rule { stroke: color-mix(in srgb, var(--lane-colour) 42%, #4b5d58); stroke-width: 1; stroke-dasharray: 2 6; }
 .flow-lane-label { fill: var(--paper); font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: .09em; }
 .flow-lane-sub { fill: var(--subtle); font-family: var(--font-mono); font-size: 8px; letter-spacing: .08em; }
-.flow-edge { fill: none; stroke: color-mix(in srgb, var(--flow-edge-accent, var(--flow-edge)) 50%, var(--flow-ink)); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+.flow-edge { fill: none; stroke: color-mix(in srgb, var(--flow-edge-accent, var(--flow-edge)) 50%, var(--flow-ink)); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; transition: opacity .2s ease, filter .2s ease; }
 .flow-edge.parallel, .flow-edge.optional { stroke-width: 2; stroke-dasharray: 2 6; }
 .flow-edge.sequel { stroke-width: 3.6; }
 .flow-edge.active { stroke-width: 3.2; }
 .flow-edge.active.sequel { stroke-width: 4.4; }
 .flow-edge.active.parallel, .flow-edge.active.optional { stroke-width: 2.8; }
+.flow-edge.focused { stroke-width: 4.6; filter: drop-shadow(0 2px 3px rgba(20, 126, 120, .4)); }
+.flow-edge.focused.sequel { stroke-width: 6; }
+.flow-edge.focused.parallel, .flow-edge.focused.optional { stroke-width: 3.8; }
+.flow-edge.dimmed { opacity: .13; }
 .flow-lanes .flow-edge { stroke: color-mix(in srgb, var(--flow-edge-accent, var(--flow-lane-edge)) 90%, var(--paper)); }
-.flow-node { cursor: pointer; outline: none; }
+.flow-node { cursor: pointer; outline: none; transition: opacity .2s ease; }
+.flow-node.dimmed { opacity: .22; }
+.flow-node-focus-ring { fill: none; stroke: var(--gold); stroke-width: 2; stroke-dasharray: 4 4; opacity: .9; filter: drop-shadow(0 2px 3px rgba(210, 168, 94, .25)); pointer-events: none; }
 .flow-node-plate { fill: var(--flow-node-paper); stroke: var(--flow-node-stroke); stroke-width: 1.2; transition: fill .2s ease, stroke .2s ease, filter .2s ease; }
 .flow-node-accent { fill: var(--flow-accent, var(--flow-node-stroke)); opacity: .95; }
 .flow-node-faction { fill: var(--flow-node-muted); font-family: var(--font-mono); font-size: var(--type-micro); font-weight: 700; letter-spacing: .08em; }
@@ -425,11 +436,11 @@ main { max-width: 1700px; margin: 0 auto; padding: 40px 34px 70px; }
     transition-duration: .01ms !important;
   }
 
-  .map-edge, .node-plate, .toggle-track, .toggle-track::after {
+  .map-edge, .map-node, .flow-edge, .flow-node, .node-plate, .flow-node-focus-ring, .toggle-track, .toggle-track::after {
     transition: none !important;
   }
 
-  .recommend-dot, .map-node.selected .node-plate {
+  .recommend-dot, .map-node.selected .node-plate, .node-focus-ring, .flow-node-focus-ring {
     filter: none !important;
   }
 }

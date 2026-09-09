@@ -125,6 +125,23 @@ function edgePath(from: Book, to: Book) {
   return `M ${startX} ${startY} C ${bendX} ${startY}, ${bendX} ${endY}, ${endX} ${endY}`
 }
 
+function isFocusedConnection(edge: Connection, focusId: string | null) {
+  return Boolean(focusId) && (edge.from === focusId || edge.to === focusId)
+}
+
+function getFocusedBookIds(edges: Connection[], focusId: string | null) {
+  const ids = new Set<string>()
+  if (!focusId) return ids
+  ids.add(focusId)
+  edges.forEach((edge) => {
+    if (isFocusedConnection(edge, focusId)) {
+      ids.add(edge.from)
+      ids.add(edge.to)
+    }
+  })
+  return ids
+}
+
 function IconButton({ label, onClick, children, disabled = false }: { label: string; onClick: () => void; children: ReactNode; disabled?: boolean }) {
   return <button className="icon-button" type="button" aria-label={label} title={label} onClick={onClick} disabled={disabled}>{children}</button>
 }
@@ -135,7 +152,7 @@ function StatusMark({ book, readIds, currentId }: { book: Book; readIds: Set<str
   return null
 }
 
-function BookNode({ book, selected, readIds, currentId, recommended, onSelect }: { book: Book; selected: boolean; readIds: Set<string>; currentId: string; recommended: boolean; onSelect: (book: Book) => void }) {
+function BookNode({ book, selected, dimmed, readIds, currentId, recommended, onSelect }: { book: Book; selected: boolean; dimmed: boolean; readIds: Set<string>; currentId: string; recommended: boolean; onSelect: (book: Book) => void }) {
   const titleLines = splitTitle(book.shortTitle)
   const status = readIds.has(book.id) ? 'read' : currentId === book.id ? 'current' : recommended ? 'recommended' : ''
   const onKeyDown = (event: KeyboardEvent<SVGGElement>) => {
@@ -146,7 +163,7 @@ function BookNode({ book, selected, readIds, currentId, recommended, onSelect }:
   }
   return (
     <g
-      className={`map-node ${status} ${selected ? 'selected' : ''}`}
+      className={`map-node ${status} ${selected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}`}
       transform={`translate(${book.x} ${book.y})`}
       role="button"
       tabIndex={0}
@@ -154,6 +171,7 @@ function BookNode({ book, selected, readIds, currentId, recommended, onSelect }:
       onClick={() => onSelect(book)}
       onKeyDown={onKeyDown}
     >
+      {selected && <rect className="node-focus-ring" x="-7" y="-7" width={NODE_WIDTH + 14} height={NODE_HEIGHT + 14} rx="15" />}
       <rect className="node-plate" width={NODE_WIDTH} height={NODE_HEIGHT} rx="12" />
       <path className="node-notch" d="M 0 12 L 10 0 L 22 0 L 30 12 L 22 24 L 10 24 Z" />
       <text className="node-faction" x="42" y="17">{book.faction.toUpperCase()}</text>
@@ -181,6 +199,7 @@ function MapCanvas({
   const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
   const visibleIds = new Set(visibleBooks.map((book) => book.id))
   const visibleConnections = connections.filter((edge) => visibleIds.has(edge.from) && visibleIds.has(edge.to))
+  const focusedBookIds = getFocusedBookIds(visibleConnections, selectedId)
 
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
     if (event.target !== event.currentTarget) return
@@ -229,10 +248,12 @@ function MapCanvas({
           {visibleConnections.map((edge) => {
             const from = bookById[edge.from]
             const to = bookById[edge.to]
-            const active = routeIds.has(edge.from) || routeIds.has(edge.to) || (edge.from === currentId)
-            return <path key={`${edge.from}-${edge.to}`} className={`map-edge ${active ? 'active' : ''} ${edge.kind}`} d={edgePath(from, to)} markerEnd={isDirectionalConnection(edge.kind) ? `url(#${active ? 'arrowhead-active' : 'arrowhead'})` : undefined} />
+            const active = selectedId ? isFocusedConnection(edge, selectedId) : routeIds.has(edge.from) || routeIds.has(edge.to) || (edge.from === currentId)
+            const dimmed = Boolean(selectedId) && !active
+            const focused = Boolean(selectedId) && active
+            return <path key={`${edge.from}-${edge.to}`} className={`map-edge ${active ? 'active' : ''} ${focused ? 'focused' : ''} ${dimmed ? 'dimmed' : ''} ${edge.kind}`} d={edgePath(from, to)} markerEnd={isDirectionalConnection(edge.kind) ? `url(#${active ? 'arrowhead-active' : 'arrowhead'})` : undefined} />
           })}
-          {visibleBooks.map((book) => <BookNode key={book.id} book={book} selected={selectedId === book.id} readIds={readIds} currentId={currentId} recommended={recommendedIds.has(book.id)} onSelect={onSelect} />)}
+          {visibleBooks.map((book) => <BookNode key={book.id} book={book} selected={selectedId === book.id} dimmed={Boolean(selectedId) && !focusedBookIds.has(book.id)} readIds={readIds} currentId={currentId} recommended={recommendedIds.has(book.id)} onSelect={onSelect} />)}
         </g>
       </svg>
       <div className="map-controls" aria-label="Map controls">
@@ -316,11 +337,12 @@ function flowEdgePath(from: FlowPosition, to: FlowPosition, route: FlowEdgeRoute
   return `M ${startX} ${startY} C ${startX + direction * 42} ${startY + offset}, ${endX - direction * 42} ${endY + offset}, ${endX} ${endY}`
 }
 
-function FlowBookNode({ book, position, mode, selected, readIds, currentId, recommended, onSelect }: {
+function FlowBookNode({ book, position, mode, selected, dimmed, readIds, currentId, recommended, onSelect }: {
   book: Book
   position: FlowPosition
   mode: Exclude<MapMode, 'tactical'>
   selected: boolean
+  dimmed: boolean
   readIds: Set<string>
   currentId: string
   recommended: boolean
@@ -336,7 +358,7 @@ function FlowBookNode({ book, position, mode, selected, readIds, currentId, reco
   }
   return (
     <g
-      className={`flow-node ${mode} arc-${book.arc} ${status} ${selected ? 'selected' : ''}`}
+      className={`flow-node ${mode} arc-${book.arc} ${status} ${selected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}`}
       style={{ '--flow-accent': book.accent } as CSSProperties}
       transform={`translate(${position.x} ${position.y})`}
       role="button"
@@ -345,6 +367,7 @@ function FlowBookNode({ book, position, mode, selected, readIds, currentId, reco
       onClick={() => onSelect(book)}
       onKeyDown={onKeyDown}
     >
+      {selected && <rect className="flow-node-focus-ring" x="-7" y="-7" width={FLOW_NODE_WIDTH + 14} height={FLOW_NODE_HEIGHT + 14} rx={mode === 'reference' ? 8 : 12} />}
       <rect className="flow-node-plate" width={FLOW_NODE_WIDTH} height={FLOW_NODE_HEIGHT} rx={mode === 'reference' ? 5 : 9} />
       <rect className="flow-node-accent" width="5" height={FLOW_NODE_HEIGHT} rx="2" />
       <text className="flow-node-faction" x="14" y="17">{book.faction.toUpperCase()}</text>
@@ -371,6 +394,7 @@ function FlowMapCanvas({
   const { positions, width: flowWidth, height: flowHeight, rows } = buildFlowLayout(visibleBooks)
   const visibleIds = new Set(visibleBooks.map((book) => book.id))
   const visibleConnections = connections.filter((edge) => visibleIds.has(edge.from) && visibleIds.has(edge.to))
+  const focusedBookIds = getFocusedBookIds(visibleConnections, selectedId)
   const sameRowOutgoing = new globalThis.Map<string, string[]>()
   const sameRowIncoming = new globalThis.Map<string, string[]>()
   const crossLaneOutgoing = new globalThis.Map<string, string[]>()
@@ -464,15 +488,17 @@ function FlowMapCanvas({
             const from = positions[edge.from]
             const to = positions[edge.to]
             if (!from || !to) return null
-            const active = edge.from === currentId || edge.to === currentId || edge.from === selectedId || edge.to === selectedId
+            const active = selectedId ? isFocusedConnection(edge, selectedId) : edge.from === currentId || edge.to === currentId
+            const dimmed = Boolean(selectedId) && !active
+            const focused = Boolean(selectedId) && active
             const marker = isDirectionalConnection(edge.kind)
               ? `url(#${flowEdgeMarkerId(mode, bookById[edge.from].arc, edge.kind === 'sequel')})`
               : undefined
-            return <path key={`${edge.from}-${edge.to}`} className={`flow-edge ${active ? 'active' : ''} ${edge.kind}`} style={{ '--flow-edge-accent': arcMeta[bookById[edge.from].arc].colour } as CSSProperties} d={flowEdgePath(from, to, edgeRoutes.get(`${edge.from}:${edge.to}`) || { sourceOffset: 0, targetOffset: 0, channelOffset: 0 })} markerEnd={marker} />
+            return <path key={`${edge.from}-${edge.to}`} className={`flow-edge ${active ? 'active' : ''} ${focused ? 'focused' : ''} ${dimmed ? 'dimmed' : ''} ${edge.kind}`} style={{ '--flow-edge-accent': arcMeta[bookById[edge.from].arc].colour } as CSSProperties} d={flowEdgePath(from, to, edgeRoutes.get(`${edge.from}:${edge.to}`) || { sourceOffset: 0, targetOffset: 0, channelOffset: 0 })} markerEnd={marker} />
           })}
         </g>
         <g className="flow-nodes">
-          {visibleBooks.map((book) => <FlowBookNode key={book.id} book={book} position={positions[book.id] || { x: 20, y: 20 }} mode={mode} selected={selectedId === book.id} readIds={readIds} currentId={currentId} recommended={recommendedIds.has(book.id)} onSelect={onSelect} />)}
+          {visibleBooks.map((book) => <FlowBookNode key={book.id} book={book} position={positions[book.id] || { x: 20, y: 20 }} mode={mode} selected={selectedId === book.id} dimmed={Boolean(selectedId) && !focusedBookIds.has(book.id)} readIds={readIds} currentId={currentId} recommended={recommendedIds.has(book.id)} onSelect={onSelect} />)}
         </g>
       </svg>
       <div className="flow-canvas-note">Mainline edges stay on the central route. Branch links use the near corridor; dashed related links use the outer corridor.</div>
