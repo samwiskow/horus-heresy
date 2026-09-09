@@ -13,37 +13,49 @@ type Progress = { readIds: string[]; currentId: string }
 const STORAGE_KEY = 'heresy-pathfinder-progress'
 const NODE_WIDTH = 180
 const NODE_HEIGHT = 74
-const MAP_WIDTH = 1240
-const MAP_HEIGHT = 1115
+const MAP_WIDTH = 1680
+const MAP_HEIGHT = 1500
 const FLOW_NODE_WIDTH = 154
 const FLOW_NODE_HEIGHT = 70
-const FLOW_WIDTH = 1550
-const FLOW_HEIGHT = 900
 const knownBookIds = new Set(books.map((book) => book.id))
 
 type FlowPosition = { x: number; y: number }
+const FLOW_LEFT = 188
+const FLOW_X_STEP = 190
+const FLOW_TOP = 100
+const FLOW_ROW_GAP = 122
 
-const referenceFlowPositions: Record<string, FlowPosition> = {
-  'horus-rising': { x: 45, y: 92 }, 'false-gods': { x: 240, y: 92 }, 'galaxy-in-flames': { x: 435, y: 92 },
-  'flight-eisenstein': { x: 630, y: 92 }, fulgrim: { x: 825, y: 92 },
-  'thousand-sons': { x: 45, y: 300 }, 'prospero-burns': { x: 240, y: 300 },
-  'first-heretic': { x: 435, y: 300 }, legion: { x: 630, y: 300 }, mechanicum: { x: 825, y: 300 },
-  'praetorian-dorn': { x: 1020, y: 300 },
-  'scars': { x: 45, y: 510 }, 'path-of-heaven': { x: 240, y: 510 },
-  'know-no-fear': { x: 435, y: 510 }, betrayer: { x: 630, y: 510 }, 'vengeful-spirit': { x: 825, y: 510 },
-  'unremembered-empire': { x: 630, y: 690 }, ruinstorm: { x: 825, y: 690 }, 'master-of-mankind': { x: 1020, y: 690 },
-  wolfsbane: { x: 240, y: 795 }, 'slaves-to-darkness': { x: 435, y: 795 }, 'buried-dagger': { x: 825, y: 795 },
-}
+type FlowRow = { id: ArcId; label: string; y: number; colour: string }
+type FlowLayout = { positions: Record<string, FlowPosition>; width: number; height: number; rows: FlowRow[] }
 
-const laneFlowPositions: Record<string, FlowPosition> = {
-  'horus-rising': { x: 180, y: 70 }, 'false-gods': { x: 370, y: 70 }, 'galaxy-in-flames': { x: 560, y: 70 },
-  'flight-eisenstein': { x: 750, y: 70 }, fulgrim: { x: 940, y: 70 },
-  'thousand-sons': { x: 370, y: 240 }, 'prospero-burns': { x: 560, y: 240 }, legion: { x: 750, y: 240 },
-  mechanicum: { x: 940, y: 240 }, scars: { x: 1130, y: 240 }, 'path-of-heaven': { x: 1320, y: 240 },
-  'first-heretic': { x: 370, y: 410 }, 'know-no-fear': { x: 560, y: 410 }, betrayer: { x: 750, y: 410 },
-  'praetorian-dorn': { x: 750, y: 580 }, 'vengeful-spirit': { x: 940, y: 580 }, wolfsbane: { x: 1130, y: 580 },
-  'slaves-to-darkness': { x: 1320, y: 580 },
-  'unremembered-empire': { x: 560, y: 750 }, ruinstorm: { x: 750, y: 750 }, 'master-of-mankind': { x: 940, y: 750 }, 'buried-dagger': { x: 1130, y: 750 },
+const flowRows: FlowRow[] = Object.entries(arcMeta).map(([id, meta], index) => ({
+  id: id as ArcId,
+  label: meta.label.toUpperCase(),
+  y: FLOW_TOP + index * FLOW_ROW_GAP,
+  colour: meta.colour,
+}))
+
+function buildFlowLayout(visibleBooks?: Book[]): FlowLayout {
+  const positions: Record<string, FlowPosition> = {}
+  let maxBooksInRow = 0
+  const visibleIds = visibleBooks ? new Set(visibleBooks.map((book) => book.id)) : null
+  const rows = (visibleIds ? flowRows.filter((row) => books.some((book) => book.arc === row.id && visibleIds.has(book.id))) : flowRows).map((row, index) => ({
+    ...row,
+    y: FLOW_TOP + index * FLOW_ROW_GAP,
+  }))
+  rows.forEach((row) => {
+    const arcBooks = books.filter((book) => book.arc === row.id && (!visibleIds || visibleIds.has(book.id)))
+    maxBooksInRow = Math.max(maxBooksInRow, arcBooks.length)
+    arcBooks.forEach((book, index) => {
+      positions[book.id] = { x: FLOW_LEFT + index * FLOW_X_STEP, y: row.y - FLOW_NODE_HEIGHT / 2 }
+    })
+  })
+  return {
+    positions,
+    width: Math.max(1550, FLOW_LEFT + maxBooksInRow * FLOW_X_STEP + 40),
+    height: (rows.at(-1)?.y ?? FLOW_TOP) + FLOW_NODE_HEIGHT + 42,
+    rows,
+  }
 }
 
 function loadProgress(): Progress {
@@ -273,41 +285,31 @@ function FlowMapCanvas({
   recommendedIds: Set<string>
   onSelect: (book: Book) => void
 }) {
-  const positions = mode === 'reference' ? referenceFlowPositions : laneFlowPositions
+  const { positions, width: flowWidth, height: flowHeight, rows } = buildFlowLayout(visibleBooks)
   const visibleIds = new Set(visibleBooks.map((book) => book.id))
   const visibleConnections = connections.filter((edge) => visibleIds.has(edge.from) && visibleIds.has(edge.to))
-  const laneRows = [
-    { id: 'opening', label: 'OPENING CAMPAIGN', y: 104, colour: arcMeta.opening.colour },
-    { id: 'legions', label: 'LEGIONS IN COLLISION', y: 274, colour: arcMeta.legions.colour },
-    { id: 'calth', label: 'CALTH / WORD BEARERS', y: 444, colour: arcMeta.calth.colour },
-    { id: 'warmaster', label: 'THE WARMASTER', y: 614, colour: arcMeta.warmaster.colour },
-    { id: 'siege', label: 'ROAD TO TERRA', y: 784, colour: arcMeta.siege.colour },
-  ]
   return (
     <div className={`flow-canvas-shell flow-${mode}`}>
-      <svg className="flow-canvas" viewBox={`0 0 ${FLOW_WIDTH} ${FLOW_HEIGHT}`} aria-hidden="true">
+      <svg className="flow-canvas" style={{ width: `${flowWidth}px`, height: `${flowHeight}px` }} viewBox={`0 0 ${flowWidth} ${flowHeight}`} aria-hidden="true">
         <defs>
           <marker id={`flow-arrow-${mode}`} markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
             <path d="M 0 0 L 7 3 L 0 6 Z" />
           </marker>
         </defs>
-        <rect className="flow-surface" width={FLOW_WIDTH} height={FLOW_HEIGHT} />
+        <rect className="flow-surface" width={flowWidth} height={flowHeight} />
         {mode === 'reference' ? (
           <g className="flow-reference-guides">
             <text className="flow-title" x="45" y="33">HORUS HERESY / READING ORDER</text>
-            <text className="flow-direction" x="1495" y="33">SUGGESTED PROGRESSION →</text>
-            {[220, 415, 610, 805, 1000, 1195, 1390].map((x) => <line key={x} x1={x} y1="55" x2={x} y2="848" />)}
-            <line x1="28" y1="55" x2="1515" y2="55" />
-            <text className="flow-column-label" x="45" y="73">THE OPENING TRILOGY</text>
-            <text className="flow-column-label" x="405" y="73">FIRST FRACTURES</text>
-            <text className="flow-column-label" x="765" y="73">WAR SPREADS</text>
-            <text className="flow-column-label" x="1125" y="73">CONVERGENCE</text>
+            <text className="flow-direction" x={flowWidth - 35} y="33">SUGGESTED PROGRESSION →</text>
+            {Array.from({ length: Math.ceil(flowWidth / 380) - 1 }, (_, index) => <line key={index} x1={380 + index * 380} y1="55" x2={380 + index * 380} y2={flowHeight - 55} />)}
+            <line x1="28" y1="55" x2={flowWidth - 28} y2="55" />
+            {rows.map((row) => <g key={row.id}><line x1="28" y1={row.y + 58} x2={flowWidth - 28} y2={row.y + 58} /><text className="flow-column-label" x="38" y={row.y - 43}>{row.label}</text></g>)}
           </g>
         ) : (
           <g className="flow-lane-guides">
             <text className="flow-title" x="28" y="33">ARC LANES / STORY ARCS</text>
-            <text className="flow-direction" x="1495" y="33">OPENING → TERRA</text>
-            {laneRows.map((lane) => <g key={lane.id}><rect className="flow-lane-band" x="20" y={lane.y - 70} width="1500" height="140" rx="5" style={{ '--lane-colour': lane.colour } as CSSProperties} /><line className="flow-lane-rule" x1="168" y1={lane.y} x2="1510" y2={lane.y} /><text className="flow-lane-label" x="38" y={lane.y - 13}>{lane.label}</text><text className="flow-lane-sub" x="38" y={lane.y + 8}>{lane.id === 'opening' ? 'ENTRY ROUTE' : lane.id === 'siege' ? 'FINAL APPROACH' : 'BRANCH'}</text></g>)}
+            <text className="flow-direction" x={flowWidth - 35} y="33">OPENING → TERRA</text>
+            {rows.map((row) => <g key={row.id}><rect className="flow-lane-band" x="20" y={row.y - 58} width={flowWidth - 40} height="116" rx="5" style={{ '--lane-colour': row.colour } as CSSProperties} /><line className="flow-lane-rule" x1={FLOW_LEFT - 20} y1={row.y} x2={flowWidth - 30} y2={row.y} /><text className="flow-lane-label" x="38" y={row.y - 13}>{row.label}</text><text className="flow-lane-sub" x="38" y={row.y + 8}>{row.id === 'opening' ? 'ENTRY ROUTE' : row.id === 'siege' ? 'FINAL APPROACH' : 'BRANCH'}</text></g>)}
           </g>
         )}
         <g className="flow-edges">
@@ -369,7 +371,7 @@ function BookDetail({ book, readIds, currentId, onClose, onRead, onCurrent }: { 
       <div className="reason-box"><span>WHY IT IS HERE</span><p>{book.reason}</p></div>
       <div className="detail-state"><span className={`state-dot ${isRead ? 'read' : isCurrent ? 'current' : ''}`} /> {isRead ? 'Read' : isCurrent ? 'Current book' : 'Unread'}<span className="detail-spoiler">Spoiler level: {book.spoilerLevel}</span></div>
       <div className="detail-actions"><button className="primary-action" type="button" onClick={() => onRead(book.id)}>{isRead ? <RotateCcw size={15} /> : <Check size={15} />}{isRead ? 'Mark unread' : 'Mark read'}</button><button className="quiet-action" type="button" onClick={() => onCurrent(book.id)} disabled={isCurrent}>{isCurrent ? 'Current book' : 'Set as current'}</button></div>
-      <div className="source-note"><CircleHelp size={15} /><span>Curated experiment data. Relationships are intentionally explainable and will be expanded in later passes.</span></div>
+      <div className="source-note"><CircleHelp size={15} /><span>Curated core catalogue based on the reference flowchart. Arc membership is a navigational aid, not a claim of one official order.</span></div>
     </div>
   )
 }

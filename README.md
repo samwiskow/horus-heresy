@@ -20,7 +20,7 @@ Then open the local Vite URL. `pnpm build` creates the production bundle.
 - Book dossier inspector with current/read state
 - Arc Atlas and personal Library views
 - Local progress persistence plus JSON route export
-- Curated 22-book experiment dataset in `src/data.ts`
+- Expanded core catalogue in `src/data.ts`, covering the numbered Heresy route, major faction arcs, and the Siege of Terra sequence
 
 Progress is stored in the browser under `heresy-pathfinder-progress`. The relationships are intentionally curated experiment data and should be expanded and sourced before treating the app as a complete public reading guide.
 
@@ -31,4 +31,4 @@ This experiment takes its structure and inspiration from these community-made Ho
 - [Horus Heresy series order flowchart](https://www.kylebb.com/HH/HHSeriesOrder.svg)
 - [Story-arc driven Horus Heresy timeline](https://gaming.kylebb.com/hhtimeline/)
 
-The Pathfinder map is an original interface and curated dataset. It is not a reproduction of either reference, and the current catalog intentionally covers only a subset of the wider series.
+The Pathfinder map is an original interface and curated dataset. It is not a reproduction of either reference; the catalogue focuses on core novels, anthologies, novellas, and major arc anchors rather than every short story.
