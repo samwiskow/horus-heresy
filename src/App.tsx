@@ -19,6 +19,8 @@ const FLOW_NODE_WIDTH = 154
 const FLOW_NODE_HEIGHT = 70
 const FLOW_EDGE_GAP = 8
 const FLOW_EDGE_FAN = 18
+const FLOW_CROSS_CHANNEL_GAP = 10
+const FLOW_CROSS_TRACK_GAP = 22
 const FLOW_EDGE_CURVE_THRESHOLD = 96
 const knownBookIds = new Set(books.map((book) => book.id))
 
@@ -248,6 +250,28 @@ function centredOffset(index: number, count: number, spacing: number) {
   return (index - (count - 1) / 2) * spacing
 }
 
+function flowRowIndex(position: FlowPosition) {
+  return Math.round((position.y + FLOW_NODE_HEIGHT / 2 - FLOW_TOP) / FLOW_ROW_GAP)
+}
+
+function flowCorridorKey(from: FlowPosition, to: FlowPosition) {
+  return String(Math.floor((flowRowIndex(from) + flowRowIndex(to)) / 2))
+}
+
+function flowLanePairKey(from: FlowPosition, to: FlowPosition) {
+  return `${flowRowIndex(from)}:${flowRowIndex(to)}`
+}
+
+function flowEdgeMarkerId(mode: Exclude<MapMode, 'tactical'>, arc: ArcId, primary: boolean) {
+  return `flow-arrow-${primary ? 'primary-' : ''}${mode}-${arc}`
+}
+
+function flowEdgeMarkerColour(colour: string, mode: Exclude<MapMode, 'tactical'>, primary: boolean) {
+  const mix = mode === 'reference' ? (primary ? 78 : 68) : primary ? 88 : 78
+  const background = mode === 'reference' ? '#182522' : '#0d1415'
+  return `color-mix(in srgb, ${colour} ${mix}%, ${background})`
+}
+
 type FlowEdgeRoute = {
   sourceOffset: number
   targetOffset: number
@@ -262,7 +286,8 @@ function flowEdgePath(from: FlowPosition, to: FlowPosition, route: FlowEdgeRoute
     const endX = to.x + FLOW_NODE_WIDTH / 2 + route.targetOffset
     const startY = movesDown ? from.y + FLOW_NODE_HEIGHT + FLOW_EDGE_GAP : from.y - FLOW_EDGE_GAP
     const endY = movesDown ? to.y - FLOW_EDGE_GAP : to.y + FLOW_NODE_HEIGHT + FLOW_EDGE_GAP
-    const channelY = startY + (endY - startY) * 0.5 + route.channelOffset
+    const corridorRow = Number(flowCorridorKey(from, to))
+    const channelY = FLOW_TOP + corridorRow * FLOW_ROW_GAP + FLOW_ROW_GAP / 2 + route.channelOffset
     return `M ${startX} ${startY} V ${channelY} H ${endX} V ${endY}`
   }
 
@@ -335,18 +360,31 @@ function FlowMapCanvas({
   const { positions, width: flowWidth, height: flowHeight, rows } = buildFlowLayout(visibleBooks)
   const visibleIds = new Set(visibleBooks.map((book) => book.id))
   const visibleConnections = connections.filter((edge) => visibleIds.has(edge.from) && visibleIds.has(edge.to))
+  const displayedConnections = visibleConnections.filter((edge) => isDirectionalConnection(edge.kind) || Boolean(selectedId && (edge.from === selectedId || edge.to === selectedId)))
   const sameRowOutgoing = new globalThis.Map<string, string[]>()
   const sameRowIncoming = new globalThis.Map<string, string[]>()
   const crossLaneOutgoing = new globalThis.Map<string, string[]>()
   const crossLaneIncoming = new globalThis.Map<string, string[]>()
-  visibleConnections.forEach((edge) => {
-    const sameRow = positions[edge.from]?.y === positions[edge.to]?.y
+  const crossLaneChannels = new globalThis.Map<string, string[]>()
+  const crossLaneTracks = new globalThis.Map<string, string[]>()
+  displayedConnections.forEach((edge) => {
+    const from = positions[edge.from]
+    const to = positions[edge.to]
+    const sameRow = from?.y === to?.y
     const outgoing = sameRow ? sameRowOutgoing : crossLaneOutgoing
     const incoming = sameRow ? sameRowIncoming : crossLaneIncoming
     outgoing.set(edge.from, [...(outgoing.get(edge.from) || []), edge.to])
     incoming.set(edge.to, [...(incoming.get(edge.to) || []), edge.from])
+    if (!sameRow && from && to) {
+      const corridorKey = flowCorridorKey(from, to)
+      const lanePairKey = flowLanePairKey(from, to)
+      const edgeKey = `${edge.from}:${edge.to}`
+      crossLaneChannels.set(lanePairKey, [...(crossLaneChannels.get(lanePairKey) || []), edgeKey])
+      const tracks = crossLaneTracks.get(corridorKey) || []
+      if (!tracks.includes(lanePairKey)) crossLaneTracks.set(corridorKey, [...tracks, lanePairKey])
+    }
   })
-  const edgeRoutes = new globalThis.Map<string, FlowEdgeRoute>(visibleConnections.map((edge, index) => {
+  const edgeRoutes = new globalThis.Map<string, FlowEdgeRoute>(displayedConnections.map((edge, index) => {
     const sameRow = positions[edge.from]?.y === positions[edge.to]?.y
     const outgoing = sameRow ? sameRowOutgoing : crossLaneOutgoing
     const incoming = sameRow ? sameRowIncoming : crossLaneIncoming
@@ -358,20 +396,39 @@ function FlowMapCanvas({
     const targetOffset = sameRow && isDirectionalConnection(edge.kind)
       ? 0
       : centredOffset(targetSources.indexOf(edge.from), targetSources.length, FLOW_EDGE_FAN)
+    const corridorKey = !sameRow && positions[edge.from] && positions[edge.to]
+      ? flowCorridorKey(positions[edge.from], positions[edge.to])
+      : ''
+    const lanePairKey = !sameRow && positions[edge.from] && positions[edge.to]
+      ? flowLanePairKey(positions[edge.from], positions[edge.to])
+      : ''
+    const channelEdges = crossLaneChannels.get(lanePairKey) || []
+    const trackKeys = crossLaneTracks.get(corridorKey) || []
+    const trackOffset = sameRow
+      ? 0
+      : centredOffset(trackKeys.indexOf(lanePairKey), trackKeys.length, FLOW_CROSS_TRACK_GAP)
+    const channelOffset = sameRow
+      ? sourceOffset + targetOffset * 0.7 + (index % 3 - 1) * 4
+      : trackOffset + centredOffset(channelEdges.indexOf(`${edge.from}:${edge.to}`), channelEdges.length, FLOW_CROSS_CHANNEL_GAP)
     return [`${edge.from}:${edge.to}`, {
       sourceOffset,
       targetOffset,
-      channelOffset: sourceOffset + targetOffset * 0.7 + (index % 3 - 1) * 4,
+      channelOffset,
     }] as const
   }))
   return (
     <div className={`flow-canvas-shell flow-${mode}`}>
-      <div className="flow-canvas-key" role="note" aria-label="Connection key"><span className="flow-key-direction">Solid arrows end at the destination</span><span className="flow-key-item"><span className="connection-key-line solid" />Solid direct / suggested</span><span className="flow-key-item"><span className="connection-key-line dashed" />Dashed related / no order</span></div>
+      <div className="flow-canvas-key" role="note" aria-label="Connection key"><span className="flow-key-direction">Colour follows the source arc · arrowheads mark destinations · select a book for related links</span><span className="flow-key-item"><span className="connection-key-line primary" />Main storyline</span><span className="flow-key-item"><span className="connection-key-line solid" />Branch / suggested</span><span className="flow-key-item"><span className="connection-key-line dashed" />Related / no order</span></div>
       <svg className="flow-canvas" style={{ width: `${flowWidth}px`, height: `${flowHeight}px` }} viewBox={`0 0 ${flowWidth} ${flowHeight}`} aria-hidden="true">
         <defs>
-          <marker id={`flow-arrow-${mode}`} markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
-            <path d="M 0 0 L 8 4 L 0 8 Z" />
-          </marker>
+          {Object.entries(arcMeta).map(([arc, meta]) => <g key={arc}>
+            <marker id={flowEdgeMarkerId(mode, arc as ArcId, false)} markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+              <path d="M 0 0 L 8 4 L 0 8 Z" style={{ fill: flowEdgeMarkerColour(meta.colour, mode, false) }} />
+            </marker>
+            <marker id={flowEdgeMarkerId(mode, arc as ArcId, true)} markerWidth="14" markerHeight="14" refX="11" refY="5.5" orient="auto" markerUnits="userSpaceOnUse">
+              <path d="M 0 0 L 11 5.5 L 0 11 Z" style={{ fill: flowEdgeMarkerColour(meta.colour, mode, true) }} />
+            </marker>
+          </g>)}
         </defs>
         <rect className="flow-surface" width={flowWidth} height={flowHeight} />
         {mode === 'reference' ? (
@@ -390,19 +447,22 @@ function FlowMapCanvas({
           </g>
         )}
         <g className="flow-edges">
-          {visibleConnections.map((edge) => {
+          {displayedConnections.map((edge) => {
             const from = positions[edge.from]
             const to = positions[edge.to]
             if (!from || !to) return null
             const active = edge.from === currentId || edge.to === currentId || edge.from === selectedId || edge.to === selectedId
-            return <path key={`${edge.from}-${edge.to}`} className={`flow-edge ${active ? 'active' : ''} ${edge.kind}`} d={flowEdgePath(from, to, edgeRoutes.get(`${edge.from}:${edge.to}`) || { sourceOffset: 0, targetOffset: 0, channelOffset: 0 })} markerEnd={isDirectionalConnection(edge.kind) ? `url(#flow-arrow-${mode})` : undefined} />
+            const marker = isDirectionalConnection(edge.kind)
+              ? `url(#${flowEdgeMarkerId(mode, bookById[edge.from].arc, edge.kind === 'sequel')})`
+              : undefined
+            return <path key={`${edge.from}-${edge.to}`} className={`flow-edge ${active ? 'active' : ''} ${edge.kind}`} style={{ '--flow-edge-accent': arcMeta[bookById[edge.from].arc].colour } as CSSProperties} d={flowEdgePath(from, to, edgeRoutes.get(`${edge.from}:${edge.to}`) || { sourceOffset: 0, targetOffset: 0, channelOffset: 0 })} markerEnd={marker} />
           })}
         </g>
         <g className="flow-nodes">
           {visibleBooks.map((book) => <FlowBookNode key={book.id} book={book} position={positions[book.id] || { x: 20, y: 20 }} mode={mode} selected={selectedId === book.id} readIds={readIds} currentId={currentId} recommended={recommendedIds.has(book.id)} onSelect={onSelect} />)}
         </g>
       </svg>
-      <div className="flow-canvas-note">{mode === 'reference' ? 'Solid arrows enter the destination card; dashed lines show related books without order.' : 'Solid cross-lane arrows enter the destination; dashed lines show related books without order.'}</div>
+      <div className="flow-canvas-note">{mode === 'reference' ? 'Bold arrows carry the main storyline into the destination card. Select a book to reveal related links without order.' : 'Bold arrows carry the main storyline into the destination. Select a book to reveal related links without order.'}</div>
       <div className="map-accessible-list" aria-label="Books in the campaign map">
         <h2 className="sr-only">Campaign books</h2>
         <p className="sr-only">Use this keyboard-accessible list to inspect a book without navigating the visual map.</p>
@@ -483,9 +543,9 @@ function MapView({ mode, onModeChange, currentId, selectedId, readIds, search, a
         <label className="toggle-row"><span><Compass size={15} />Show reachable route</span><input type="checkbox" checked={routeOnly} onChange={(event) => onRouteOnly(event.target.checked)} /><span className="toggle-track" /></label>
         <div className="rail-note"><Target size={15} /><p><strong>Current position</strong><br />{bookById[currentId].title}</p></div>
         <div className="legend"><span className="panel-kicker">STATUS LEGEND</span><div><span className="legend-dot current" />Current</div><div><span className="legend-dot read" />Read</div><div><span className="legend-dot next" />Recommended next</div></div>
-        <div className="connection-key"><span className="panel-kicker">CONNECTION KEY</span><div className="connection-key-item"><span className="connection-key-line solid" /><span><strong>Solid arrow</strong><small>direct continuation / suggested route</small></span></div><div className="connection-key-item"><span className="connection-key-line dashed" /><span><strong>Dashed line</strong><small>parallel or optional relationship · no reading order</small></span></div><p>Only solid arrows define a direction. The arrowhead marks the destination; dashed lines show related books you may choose to explore.</p></div>
+        <div className="connection-key"><span className="panel-kicker">CONNECTION KEY</span><div className="connection-key-item"><span className="connection-key-line primary" /><span><strong>Bold arrow</strong><small>main storyline / direct continuation</small></span></div><div className="connection-key-item"><span className="connection-key-line solid" /><span><strong>Solid arrow</strong><small>branch continuation / suggested route</small></span></div><div className="connection-key-item"><span className="connection-key-line dashed" /><span><strong>Dashed line</strong><small>parallel or optional relationship · no reading order</small></span></div><p>Arrowheads mark destinations. Edge colour follows the source book’s arc; use the Story arcs swatches to identify it. Select a book to reveal related dashed links.</p></div>
       </aside>
-      <section className="map-stage">{mode === 'tactical' ? <MapCanvas selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} routeIds={routeIds} recommendedIds={recommendedIds} onSelect={onSelect} /> : <FlowMapCanvas key={mode} mode={mode} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} recommendedIds={recommendedIds} onSelect={onSelect} />}<div className="map-footer"><span><span className="footer-line teal" />Suggested route</span><span><span className="footer-line" />Parallel / optional</span><span className="footer-note">{mode === 'tactical' ? 'Solid arrows mark the destination · dashed lines show related books · drag to pan · scroll to zoom' : 'Solid arrows mark the destination · dashed lines show related books · select a book to inspect'}</span></div></section>
+      <section className="map-stage">{mode === 'tactical' ? <MapCanvas selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} routeIds={routeIds} recommendedIds={recommendedIds} onSelect={onSelect} /> : <FlowMapCanvas key={mode} mode={mode} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} recommendedIds={recommendedIds} onSelect={onSelect} />}<div className="map-footer"><span><span className="footer-line teal strong" />Main storyline</span><span><span className="footer-line" />Branch / suggested</span><span><span className="footer-line dashed" />Related links</span><span className="footer-note">{mode === 'tactical' ? 'Arrowheads mark the destination · dashed lines show related books · drag to pan · scroll to zoom' : 'Arrowheads mark the destination · select a book to reveal related links'}</span></div></section>
       <aside className="inspector">
         {selected ? <BookDetail book={selected} readIds={readIds} currentId={currentId} onClose={() => onSelect(null)} onRead={onRead} onCurrent={onCurrent} /> : <RecommendationPanel recommendation={recommendations[0]} recommendations={recommendations} onSelect={onSelect} onRead={onRead} onCurrent={onCurrent} />}
         {!selected && <div className="inspector-divider"><span />YOUR ROUTE<span /></div>}

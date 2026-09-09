@@ -459,13 +459,14 @@ export const books: Book[] = bookSeeds.map((book, index) => ({
 const curatedConnections: Connection[] = [
   { from: 'horus-rising', to: 'false-gods', kind: 'sequel', explanation: 'The direct continuation of the opening campaign.' },
   { from: 'false-gods', to: 'galaxy-in-flames', kind: 'sequel', explanation: 'Completes the opening trilogy.' },
-  { from: 'galaxy-in-flames', to: 'flight-eisenstein', kind: 'recommended', explanation: 'Carries the Isstvan news toward Terra.' },
+  { from: 'galaxy-in-flames', to: 'flight-eisenstein', kind: 'sequel', explanation: 'Direct continuation of the opening trilogy as the loyalist escape carries the Isstvan news toward Terra.' },
   { from: 'galaxy-in-flames', to: 'fulgrim', kind: 'parallel', explanation: 'Expands the Isstvan catastrophe through another legion.' },
   { from: 'galaxy-in-flames', to: 'first-heretic', kind: 'recommended', explanation: 'Follows the rebellion back to its spiritual origin.' },
   { from: 'galaxy-in-flames', to: 'thousand-sons', kind: 'parallel', explanation: 'Opens the major legion branches beyond Isstvan.' },
   { from: 'first-heretic', to: 'know-no-fear', kind: 'recommended', explanation: 'The Word Bearers’ route reaches Calth.' },
   { from: 'know-no-fear', to: 'betrayer', kind: 'recommended', explanation: 'The consequences of Calth move into the Shadow Crusade.' },
-  { from: 'thousand-sons', to: 'prospero-burns', kind: 'recommended', explanation: 'Read the paired Prospero perspectives together.' },
+  { from: 'thousand-sons', to: 'prospero-burns', kind: 'parallel', explanation: 'Paired perspectives on Prospero; neither book is a sequel to the other.' },
+  { from: 'thousand-sons', to: 'crimson-king', kind: 'sequel', explanation: 'Direct follow-up to the Thousand Sons story after the razing of Prospero.' },
   { from: 'prospero-burns', to: 'scars', kind: 'parallel', explanation: 'The White Scars’ position becomes central to the wider war.' },
   { from: 'galaxy-in-flames', to: 'legion', kind: 'parallel', explanation: 'A covert route into the rebellion’s hidden strategies.' },
   { from: 'legion', to: 'praetorian-dorn', kind: 'recommended', explanation: 'The Alpha Legion route collides with the Imperial Fists.' },
@@ -482,6 +483,16 @@ const curatedConnections: Connection[] = [
   { from: 'wolfsbane', to: 'slaves-to-darkness', kind: 'recommended', explanation: 'Both sides prepare for the final assault.' },
   { from: 'master-of-mankind', to: 'slaves-to-darkness', kind: 'parallel', explanation: 'The hidden war and the traitor armada converge.' },
   { from: 'slaves-to-darkness', to: 'buried-dagger', kind: 'recommended', explanation: 'Closes the numbered Heresy sequence before the Siege.' },
+  { from: 'saturnine', to: 'mortis', kind: 'sequel', explanation: 'Direct continuation of the Siege of Terra novel sequence.' },
+  { from: 'solar-war', to: 'lost-and-damned', kind: 'sequel', explanation: 'Direct continuation of the Siege of Terra novel sequence.' },
+  { from: 'lost-and-damned', to: 'first-wall', kind: 'sequel', explanation: 'Direct continuation of the Siege of Terra novel sequence.' },
+  { from: 'first-wall', to: 'saturnine', kind: 'sequel', explanation: 'Direct continuation of the Siege of Terra novel sequence.' },
+  { from: 'mortis', to: 'warhawk', kind: 'sequel', explanation: 'Direct continuation of the Siege of Terra novel sequence.' },
+  { from: 'warhawk', to: 'echoes-of-eternity', kind: 'sequel', explanation: 'Direct continuation of the Siege of Terra novel sequence.' },
+  { from: 'echoes-of-eternity', to: 'end-and-death-i', kind: 'sequel', explanation: 'Direct continuation into the concluding End and the Death volume.' },
+  { from: 'end-and-death-i', to: 'end-and-death-ii', kind: 'sequel', explanation: 'The next part of the same concluding novel.' },
+  { from: 'end-and-death-ii', to: 'end-and-death-iii', kind: 'sequel', explanation: 'The final part of the same concluding novel.' },
+  { from: 'saturnine', to: 'sons-of-selenar', kind: 'optional', explanation: 'A supporting Siege novella alongside the main novel sequence.' },
 ]
 
 const coreRoute = [
@@ -495,12 +506,35 @@ const coreRoute = [
   'fury-of-magnus', 'mortis', 'warhawk', 'echoes-of-eternity', 'end-and-death-i', 'end-and-death-ii', 'end-and-death-iii',
 ]
 
-const coreRouteConnections: Connection[] = coreRoute.slice(0, -1).map((from, index) => ({
-  from,
-  to: coreRoute[index + 1],
-  kind: 'recommended',
-  explanation: 'A suggested bridge through the wider Heresy campaign.',
-}))
+const coreRouteSequelEdges = new Set([
+  'solar-war:lost-and-damned',
+  'lost-and-damned:first-wall',
+  'first-wall:saturnine',
+  'mortis:warhawk',
+  'warhawk:echoes-of-eternity',
+  'echoes-of-eternity:end-and-death-i',
+  'end-and-death-i:end-and-death-ii',
+  'end-and-death-ii:end-and-death-iii',
+])
+
+const coreRouteSupportHandoffs = new Set([
+  'saturnine:sons-of-selenar',
+  'sons-of-selenar:fury-of-magnus',
+  'fury-of-magnus:mortis',
+])
+
+const coreRouteConnections: Connection[] = coreRoute.slice(0, -1).flatMap((from, index) => {
+  const to = coreRoute[index + 1]
+  const key = `${from}:${to}`
+  if (coreRouteSupportHandoffs.has(key)) return []
+  const sequel = coreRouteSequelEdges.has(key)
+  return [{
+    from,
+    to,
+    kind: sequel ? 'sequel' : 'recommended',
+    explanation: sequel ? 'Direct continuation of the Siege of Terra novel sequence.' : 'A suggested bridge through the wider Heresy campaign.',
+  }]
+})
 
 const supportingConnections: Connection[] = [
   { from: 'descent-of-angels', to: 'fallen-angels', kind: 'sequel', explanation: 'The Dark Angels branch continues from Caliban into the wider Heresy.' },

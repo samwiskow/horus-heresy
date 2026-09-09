@@ -205,6 +205,8 @@ main { max-width: 1700px; margin: 0 auto; padding: 40px 34px 70px; }
 .connection-key-item small { color: var(--muted); font-size: var(--type-meta); line-height: 1.4; }
 .connection-key-line { position: relative; display: block; width: 22px; margin-top: 6px; color: var(--teal); border-top: 2px solid currentColor; }
 .connection-key-line::after { content: ""; position: absolute; right: -1px; top: -4px; width: 0; height: 0; border-top: 3px solid transparent; border-bottom: 3px solid transparent; border-left: 5px solid currentColor; }
+.connection-key-line.primary { color: var(--teal); border-top-width: 3px; }
+.connection-key-line.primary::after { top: -5px; border-top-width: 4px; border-bottom-width: 4px; }
 .connection-key-line.dashed { color: var(--subtle); border-top-style: dashed; border-top-width: 1px; }
 .connection-key-line.dashed::after { display: none; }
 .connection-key p { margin: 0; color: var(--subtle); font-size: var(--type-meta); line-height: 1.45; }
@@ -268,15 +270,16 @@ main { max-width: 1700px; margin: 0 auto; padding: 40px 34px 70px; }
 .flow-lane-rule { stroke: color-mix(in srgb, var(--lane-colour) 42%, #4b5d58); stroke-width: 1; stroke-dasharray: 2 6; }
 .flow-lane-label { fill: var(--paper); font-family: var(--font-mono); font-size: 9px; font-weight: 700; letter-spacing: .09em; }
 .flow-lane-sub { fill: var(--subtle); font-family: var(--font-mono); font-size: 8px; letter-spacing: .08em; }
-.flow-edge { fill: none; stroke: var(--flow-edge); stroke-width: 1.4; opacity: .26; stroke-linejoin: round; stroke-linecap: round; }
-.flow-edge.active { stroke: var(--flow-active); stroke-width: 2.5; opacity: .98; }
-.flow-edge.parallel, .flow-edge.optional { stroke-dasharray: 4 5; opacity: .22; }
-.flow-edge.sequel { stroke-width: 2; opacity: .46; }
-.flow-edge.recommended, .flow-edge.prerequisite { opacity: .38; }
-.flow-lanes .flow-edge { stroke: var(--flow-lane-edge); }
-.flow-lanes .flow-edge.active { stroke: var(--teal); }
-.flow-canvas marker path { fill: var(--flow-lane-edge); }
-.flow-lanes marker path { fill: var(--teal); }
+.flow-edge { fill: none; stroke: color-mix(in srgb, var(--flow-edge-accent, var(--flow-edge)) 68%, var(--flow-ink)); stroke-width: 1.4; opacity: .34; stroke-linejoin: round; stroke-linecap: round; }
+.flow-edge.parallel, .flow-edge.optional { stroke-width: 1; stroke-dasharray: 4 5; opacity: .18; }
+.flow-edge.recommended, .flow-edge.prerequisite { stroke-width: 1.9; opacity: .56; }
+.flow-edge.sequel { stroke: color-mix(in srgb, var(--flow-edge-accent, var(--flow-active)) 76%, var(--flow-ink)); stroke-width: 3.2; opacity: .86; }
+.flow-edge.active { stroke: color-mix(in srgb, var(--flow-edge-accent, var(--flow-active)) 86%, var(--flow-ink)); stroke-width: 2.8; opacity: .98; }
+.flow-edge.active.sequel { stroke-width: 3.8; }
+.flow-edge.active.parallel, .flow-edge.active.optional { stroke-width: 1.4; opacity: .62; }
+.flow-lanes .flow-edge { stroke: color-mix(in srgb, var(--flow-edge-accent, var(--flow-lane-edge)) 78%, #0d1415); }
+.flow-lanes .flow-edge.sequel { stroke: color-mix(in srgb, var(--flow-edge-accent, var(--teal)) 88%, #0d1415); }
+.flow-lanes .flow-edge.active { stroke: color-mix(in srgb, var(--flow-edge-accent, var(--teal)) 92%, var(--paper)); }
 .flow-node { cursor: pointer; outline: none; }
 .flow-node-plate { fill: var(--flow-node-paper); stroke: var(--flow-node-stroke); stroke-width: 1.2; transition: fill .2s ease, stroke .2s ease, filter .2s ease; }
 .flow-node-accent { fill: var(--flow-accent, var(--flow-node-stroke)); opacity: .95; }

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { books, connections } from '../src/data.ts'
 import { getReachableBookIds, getRecommendations } from '../src/logic.ts'
 
 const run = (name, test) => {
@@ -44,6 +45,33 @@ run('treats progress input as caller-owned state', () => {
   getReachableBookIds('false-gods', readIds)
 
   assert.deepEqual([...readIds], ['horus-rising'])
+})
+
+run('keeps the current book graph structurally valid', () => {
+  const ids = new Set(books.map((book) => book.id))
+  const pairs = new Set(connections.map((edge) => `${edge.from}:${edge.to}`))
+
+  assert.equal(ids.size, books.length)
+  assert.equal(connections.every((edge) => ids.has(edge.from) && ids.has(edge.to)), true)
+  assert.equal(pairs.size, connections.length)
+  assert.equal(books.every((book) => connections.some((edge) => edge.from === book.id || edge.to === book.id)), true)
+})
+
+run('keeps direct continuations distinct from suggested bridges', () => {
+  const edgeKind = (from, to) => connections.find((edge) => edge.from === from && edge.to === to)?.kind
+
+  assert.equal(edgeKind('galaxy-in-flames', 'flight-eisenstein'), 'sequel')
+  assert.equal(edgeKind('thousand-sons', 'prospero-burns'), 'parallel')
+  assert.equal(edgeKind('thousand-sons', 'crimson-king'), 'sequel')
+
+  const siegeSpine = ['solar-war', 'lost-and-damned', 'first-wall', 'saturnine', 'mortis', 'warhawk', 'echoes-of-eternity', 'end-and-death-i', 'end-and-death-ii', 'end-and-death-iii']
+  siegeSpine.slice(0, -1).forEach((from, index) => {
+    assert.equal(edgeKind(from, siegeSpine[index + 1]), 'sequel')
+  })
+
+  assert.equal(edgeKind('saturnine', 'sons-of-selenar'), 'optional')
+  assert.equal(edgeKind('sons-of-selenar', 'fury-of-magnus'), undefined)
+  assert.equal(edgeKind('fury-of-magnus', 'mortis'), undefined)
 })
 
 console.log('Recommendation logic smoke tests passed.')
