@@ -7,6 +7,7 @@ import { arcMeta, bookById, books, connections, type ArcId, type Book } from './
 import { getReachableBookIds, getRecommendations, type Recommendation } from './logic'
 
 type View = 'map' | 'atlas' | 'library'
+type MapMode = 'reference' | 'lanes' | 'tactical'
 type Progress = { readIds: string[]; currentId: string }
 
 const STORAGE_KEY = 'heresy-pathfinder-progress'
@@ -14,7 +15,36 @@ const NODE_WIDTH = 180
 const NODE_HEIGHT = 74
 const MAP_WIDTH = 1240
 const MAP_HEIGHT = 1115
+const FLOW_NODE_WIDTH = 154
+const FLOW_NODE_HEIGHT = 70
+const FLOW_WIDTH = 1550
+const FLOW_HEIGHT = 900
 const knownBookIds = new Set(books.map((book) => book.id))
+
+type FlowPosition = { x: number; y: number }
+
+const referenceFlowPositions: Record<string, FlowPosition> = {
+  'horus-rising': { x: 45, y: 92 }, 'false-gods': { x: 240, y: 92 }, 'galaxy-in-flames': { x: 435, y: 92 },
+  'flight-eisenstein': { x: 630, y: 92 }, fulgrim: { x: 825, y: 92 },
+  'thousand-sons': { x: 45, y: 300 }, 'prospero-burns': { x: 240, y: 300 },
+  'first-heretic': { x: 435, y: 300 }, legion: { x: 630, y: 300 }, mechanicum: { x: 825, y: 300 },
+  'praetorian-dorn': { x: 1020, y: 300 },
+  'scars': { x: 45, y: 510 }, 'path-of-heaven': { x: 240, y: 510 },
+  'know-no-fear': { x: 435, y: 510 }, betrayer: { x: 630, y: 510 }, 'vengeful-spirit': { x: 825, y: 510 },
+  'unremembered-empire': { x: 630, y: 690 }, ruinstorm: { x: 825, y: 690 }, 'master-of-mankind': { x: 1020, y: 690 },
+  wolfsbane: { x: 240, y: 795 }, 'slaves-to-darkness': { x: 435, y: 795 }, 'buried-dagger': { x: 825, y: 795 },
+}
+
+const laneFlowPositions: Record<string, FlowPosition> = {
+  'horus-rising': { x: 180, y: 70 }, 'false-gods': { x: 370, y: 70 }, 'galaxy-in-flames': { x: 560, y: 70 },
+  'flight-eisenstein': { x: 750, y: 70 }, fulgrim: { x: 940, y: 70 },
+  'thousand-sons': { x: 370, y: 240 }, 'prospero-burns': { x: 560, y: 240 }, legion: { x: 750, y: 240 },
+  mechanicum: { x: 940, y: 240 }, scars: { x: 1130, y: 240 }, 'path-of-heaven': { x: 1320, y: 240 },
+  'first-heretic': { x: 370, y: 410 }, 'know-no-fear': { x: 560, y: 410 }, betrayer: { x: 750, y: 410 },
+  'praetorian-dorn': { x: 750, y: 580 }, 'vengeful-spirit': { x: 940, y: 580 }, wolfsbane: { x: 1130, y: 580 },
+  'slaves-to-darkness': { x: 1320, y: 580 },
+  'unremembered-empire': { x: 560, y: 750 }, ruinstorm: { x: 750, y: 750 }, 'master-of-mankind': { x: 940, y: 750 }, 'buried-dagger': { x: 1130, y: 750 },
+}
 
 function loadProgress(): Progress {
   try {
@@ -180,6 +210,135 @@ function MapCanvas({
   )
 }
 
+function flowEdgePath(from: FlowPosition, to: FlowPosition) {
+  const movesRight = to.x >= from.x
+  const startX = movesRight ? from.x + FLOW_NODE_WIDTH : from.x
+  const endX = movesRight ? to.x : to.x + FLOW_NODE_WIDTH
+  const startY = from.y + FLOW_NODE_HEIGHT / 2
+  const endY = to.y + FLOW_NODE_HEIGHT / 2
+  const bendX = startX + (endX - startX) * 0.5
+  return `M ${startX} ${startY} H ${bendX} V ${endY} H ${endX}`
+}
+
+function FlowBookNode({ book, position, mode, selected, readIds, currentId, recommended, onSelect }: {
+  book: Book
+  position: FlowPosition
+  mode: Exclude<MapMode, 'tactical'>
+  selected: boolean
+  readIds: Set<string>
+  currentId: string
+  recommended: boolean
+  onSelect: (book: Book) => void
+}) {
+  const titleLines = splitTitle(book.shortTitle).slice(0, 2)
+  const status = readIds.has(book.id) ? 'read' : currentId === book.id ? 'current' : recommended ? 'recommended' : ''
+  const onKeyDown = (event: KeyboardEvent<SVGGElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      onSelect(book)
+    }
+  }
+  return (
+    <g
+      className={`flow-node ${mode} arc-${book.arc} ${status} ${selected ? 'selected' : ''}`}
+      style={{ '--flow-accent': book.accent } as CSSProperties}
+      transform={`translate(${position.x} ${position.y})`}
+      role="button"
+      tabIndex={0}
+      aria-label={`${book.title}, ${readIds.has(book.id) ? 'read' : currentId === book.id ? 'current book' : 'unread'}`}
+      onClick={() => onSelect(book)}
+      onKeyDown={onKeyDown}
+    >
+      <rect className="flow-node-plate" width={FLOW_NODE_WIDTH} height={FLOW_NODE_HEIGHT} rx={mode === 'reference' ? 5 : 9} />
+      <rect className="flow-node-accent" width="5" height={FLOW_NODE_HEIGHT} rx="2" />
+      <text className="flow-node-faction" x="14" y="17">{book.faction.toUpperCase()}</text>
+      {titleLines.map((line, index) => <text className="flow-node-title" key={line} x="14" y={39 + index * 13}>{line}</text>)}
+      <text className="flow-node-meta" x="14" y="62">{book.kind} {book.seriesNumber ? `· ${String(book.seriesNumber).padStart(2, '0')}` : ''}</text>
+      {readIds.has(book.id) && <path className="flow-status read" d={`M ${FLOW_NODE_WIDTH - 22} 17 l 3 3 6 -7`} />}
+      {currentId === book.id && <circle className="flow-status current" cx={FLOW_NODE_WIDTH - 16} cy="17" r="4" />}
+      {recommended && !readIds.has(book.id) && currentId !== book.id && <circle className="flow-status recommended" cx={FLOW_NODE_WIDTH - 16} cy="17" r="4" />}
+    </g>
+  )
+}
+
+function FlowMapCanvas({
+  mode, selectedId, currentId, readIds, visibleBooks, routeIds, recommendedIds, onSelect,
+}: {
+  mode: Exclude<MapMode, 'tactical'>
+  selectedId: string | null
+  currentId: string
+  readIds: Set<string>
+  visibleBooks: Book[]
+  routeIds: Set<string>
+  recommendedIds: Set<string>
+  onSelect: (book: Book) => void
+}) {
+  const positions = mode === 'reference' ? referenceFlowPositions : laneFlowPositions
+  const visibleIds = new Set(visibleBooks.map((book) => book.id))
+  const visibleConnections = connections.filter((edge) => visibleIds.has(edge.from) && visibleIds.has(edge.to))
+  const laneRows = [
+    { id: 'opening', label: 'OPENING CAMPAIGN', y: 104, colour: arcMeta.opening.colour },
+    { id: 'legions', label: 'LEGIONS IN COLLISION', y: 274, colour: arcMeta.legions.colour },
+    { id: 'calth', label: 'CALTH / WORD BEARERS', y: 444, colour: arcMeta.calth.colour },
+    { id: 'warmaster', label: 'THE WARMASTER', y: 614, colour: arcMeta.warmaster.colour },
+    { id: 'siege', label: 'ROAD TO TERRA', y: 784, colour: arcMeta.siege.colour },
+  ]
+  return (
+    <div className={`flow-canvas-shell flow-${mode}`}>
+      <svg className="flow-canvas" viewBox={`0 0 ${FLOW_WIDTH} ${FLOW_HEIGHT}`} aria-hidden="true">
+        <defs>
+          <marker id={`flow-arrow-${mode}`} markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <path d="M 0 0 L 7 3 L 0 6 Z" />
+          </marker>
+        </defs>
+        <rect className="flow-surface" width={FLOW_WIDTH} height={FLOW_HEIGHT} />
+        {mode === 'reference' ? (
+          <g className="flow-reference-guides">
+            <text className="flow-title" x="45" y="33">HORUS HERESY / READING ORDER</text>
+            <text className="flow-direction" x="1495" y="33">SUGGESTED PROGRESSION →</text>
+            {[220, 415, 610, 805, 1000, 1195, 1390].map((x) => <line key={x} x1={x} y1="55" x2={x} y2="848" />)}
+            <line x1="28" y1="55" x2="1515" y2="55" />
+            <text className="flow-column-label" x="45" y="73">THE OPENING TRILOGY</text>
+            <text className="flow-column-label" x="405" y="73">FIRST FRACTURES</text>
+            <text className="flow-column-label" x="765" y="73">WAR SPREADS</text>
+            <text className="flow-column-label" x="1125" y="73">CONVERGENCE</text>
+          </g>
+        ) : (
+          <g className="flow-lane-guides">
+            <text className="flow-title" x="28" y="33">ARC LANES / STORY ARCS</text>
+            <text className="flow-direction" x="1495" y="33">OPENING → TERRA</text>
+            {laneRows.map((lane) => <g key={lane.id}><rect className="flow-lane-band" x="20" y={lane.y - 70} width="1500" height="140" rx="5" style={{ '--lane-colour': lane.colour } as CSSProperties} /><line className="flow-lane-rule" x1="168" y1={lane.y} x2="1510" y2={lane.y} /><text className="flow-lane-label" x="38" y={lane.y - 13}>{lane.label}</text><text className="flow-lane-sub" x="38" y={lane.y + 8}>{lane.id === 'opening' ? 'ENTRY ROUTE' : lane.id === 'siege' ? 'FINAL APPROACH' : 'BRANCH'}</text></g>)}
+          </g>
+        )}
+        <g className="flow-edges">
+          {visibleConnections.map((edge) => {
+            const from = positions[edge.from]
+            const to = positions[edge.to]
+            if (!from || !to) return null
+            const active = routeIds.has(edge.from) || routeIds.has(edge.to) || edge.from === currentId
+            return <path key={`${edge.from}-${edge.to}`} className={`flow-edge ${active ? 'active' : ''} ${edge.kind}`} d={flowEdgePath(from, to)} markerEnd={`url(#flow-arrow-${mode})`} />
+          })}
+        </g>
+        <g className="flow-nodes">
+          {visibleBooks.map((book) => <FlowBookNode key={book.id} book={book} position={positions[book.id] || { x: 20, y: 20 }} mode={mode} selected={selectedId === book.id} readIds={readIds} currentId={currentId} recommended={recommendedIds.has(book.id)} onSelect={onSelect} />)}
+        </g>
+      </svg>
+      <div className="flow-canvas-key" role="note" aria-label="Connection key"><span className="flow-key-direction">Arrowheads point toward a possible next read</span><span className="flow-key-item"><span className="connection-key-line solid" />Solid direct / suggested</span><span className="flow-key-item"><span className="connection-key-line dashed" />Dashed parallel / optional</span></div>
+      <div className="flow-canvas-note">{mode === 'reference' ? 'Orthogonal connectors keep the branching structure visible at a glance.' : 'Each lane is an arc; left-to-right order shows the pressure moving toward Terra.'}</div>
+      <div className="map-accessible-list" aria-label="Books in the campaign map">
+        <h2 className="sr-only">Campaign books</h2>
+        <p className="sr-only">Use this keyboard-accessible list to inspect a book without navigating the visual map.</p>
+        <ol>
+          {visibleBooks.map((book) => {
+            const status = readIds.has(book.id) ? 'read' : currentId === book.id ? 'current book' : recommendedIds.has(book.id) ? 'recommended next' : 'unread'
+            return <li key={book.id}><button type="button" onClick={() => onSelect(book)}>{book.title} — {status}</button></li>
+          })}
+        </ol>
+      </div>
+    </div>
+  )
+}
+
 function RecommendationPanel({ recommendation, recommendations, onSelect, onRead, onCurrent }: { recommendation: Recommendation | undefined; recommendations: Recommendation[]; onSelect: (book: Book) => void; onRead: (id: string) => void; onCurrent: (id: string) => void }) {
   if (!recommendation) return <div className="empty-panel"><Sparkles size={20} /><strong>Route complete</strong><p>You have cleared this branch. Choose another node on the map to continue.</p></div>
   const book = recommendation.book
@@ -215,8 +374,8 @@ function BookDetail({ book, readIds, currentId, onClose, onRead, onCurrent }: { 
   )
 }
 
-function MapView({ currentId, selectedId, readIds, search, arcFilter, routeOnly, onSelect, onSearch, onArcFilter, onRouteOnly, onRead, onCurrent }: {
-  currentId: string; selectedId: string | null; readIds: Set<string>; search: string; arcFilter: ArcId | 'all'; routeOnly: boolean; onSelect: (book: Book | null) => void; onSearch: (value: string) => void; onArcFilter: (value: ArcId | 'all') => void; onRouteOnly: (value: boolean) => void; onRead: (id: string) => void; onCurrent: (id: string) => void
+function MapView({ mode, onModeChange, currentId, selectedId, readIds, search, arcFilter, routeOnly, onSelect, onSearch, onArcFilter, onRouteOnly, onRead, onCurrent }: {
+  mode: MapMode; onModeChange: (mode: MapMode) => void; currentId: string; selectedId: string | null; readIds: Set<string>; search: string; arcFilter: ArcId | 'all'; routeOnly: boolean; onSelect: (book: Book | null) => void; onSearch: (value: string) => void; onArcFilter: (value: ArcId | 'all') => void; onRouteOnly: (value: boolean) => void; onRead: (id: string) => void; onCurrent: (id: string) => void
 }) {
   const recommendations = useMemo(() => getRecommendations(currentId, readIds), [currentId, readIds])
   const routeIds = useMemo(() => getReachableBookIds(currentId, readIds), [currentId, readIds])
@@ -229,7 +388,16 @@ function MapView({ currentId, selectedId, readIds, search, arcFilter, routeOnly,
   })
   const selected = selectedId ? bookById[selectedId] : undefined
   return (
-    <div className="map-layout">
+    <>
+      <div className="map-mode-picker" role="group" aria-label="Map display options">
+        <div className="mode-picker-copy"><strong>Try a different map grammar</strong><span>Same route data. Three ways to read the branching.</span></div>
+        <div className="mode-options">
+          <button className={mode === 'reference' ? 'active' : ''} type="button" onClick={() => onModeChange('reference')}><span>Reference flow</span><small>orthogonal · dense</small></button>
+          <button className={mode === 'lanes' ? 'active' : ''} type="button" onClick={() => onModeChange('lanes')}><span>Arc lanes</span><small>grouped · legible</small></button>
+          <button className={mode === 'tactical' ? 'active' : ''} type="button" onClick={() => onModeChange('tactical')}><span>Campaign map</span><small>spatial · current</small></button>
+        </div>
+      </div>
+      <div className={`map-layout map-mode-${mode}`}>
       <aside className="route-rail">
         <div className="rail-heading"><div><span className="panel-kicker">ROUTE CONTROL</span><h2>Campaign map</h2></div><SlidersHorizontal size={18} /></div>
         <label className="search-field"><Search size={16} /><input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search books or legions" aria-label="Search books or legions" />{search && <button type="button" onClick={() => onSearch('')} aria-label="Clear search"><X size={14} /></button>}</label>
@@ -237,14 +405,16 @@ function MapView({ currentId, selectedId, readIds, search, arcFilter, routeOnly,
         <label className="toggle-row"><span><Compass size={15} />Show reachable route</span><input type="checkbox" checked={routeOnly} onChange={(event) => onRouteOnly(event.target.checked)} /><span className="toggle-track" /></label>
         <div className="rail-note"><Target size={15} /><p><strong>Current position</strong><br />{bookById[currentId].title}</p></div>
         <div className="legend"><span className="panel-kicker">STATUS LEGEND</span><div><span className="legend-dot current" />Current</div><div><span className="legend-dot read" />Read</div><div><span className="legend-dot next" />Recommended next</div></div>
+        <div className="connection-key"><span className="panel-kicker">CONNECTION KEY</span><div className="connection-key-item"><span className="connection-key-line solid" /><span><strong>Solid arrow</strong><small>direct continuation / suggested route</small></span></div><div className="connection-key-item"><span className="connection-key-line dashed" /><span><strong>Dashed arrow</strong><small>parallel or optional branch</small></span></div><p>Arrows point toward a possible next read. Branches stay visible so you can choose your own route.</p></div>
       </aside>
-      <section className="map-stage"><MapCanvas selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} routeIds={routeIds} recommendedIds={recommendedIds} onSelect={onSelect} /><div className="map-footer"><span><span className="footer-line teal" />Recommended edge</span><span><span className="footer-line" />Optional / parallel</span><span className="footer-note">Drag to pan · scroll to zoom · select a node to inspect</span></div></section>
+      <section className="map-stage">{mode === 'tactical' ? <MapCanvas selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} routeIds={routeIds} recommendedIds={recommendedIds} onSelect={onSelect} /> : <FlowMapCanvas key={mode} mode={mode} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} routeIds={routeIds} recommendedIds={recommendedIds} onSelect={onSelect} />}<div className="map-footer"><span><span className="footer-line teal" />Suggested route</span><span><span className="footer-line" />Parallel / optional</span><span className="footer-note">{mode === 'tactical' ? 'Arrows point toward a possible next read · drag to pan · scroll to zoom' : 'Arrows point toward a possible next read · select a book to inspect'}</span></div></section>
       <aside className="inspector">
         {selected ? <BookDetail book={selected} readIds={readIds} currentId={currentId} onClose={() => onSelect(null)} onRead={onRead} onCurrent={onCurrent} /> : <RecommendationPanel recommendation={recommendations[0]} recommendations={recommendations} onSelect={onSelect} onRead={onRead} onCurrent={onCurrent} />}
         {!selected && <div className="inspector-divider"><span />YOUR ROUTE<span /></div>}
         {!selected && <div className="route-summary"><div className="route-summary-row"><span>Completed</span><strong>{readIds.size} <small>/ {books.length}</small></strong></div><div className="progress-track"><span style={{ width: `${Math.round((readIds.size / books.length) * 100)}%` }} /></div><p>{readIds.size === 0 ? 'Mark books read to make the route yours.' : 'Your path is taking shape. Keep moving through the branches.'}</p></div>}
       </aside>
-    </div>
+      </div>
+    </>
   )
 }
 
@@ -261,6 +431,7 @@ function LibraryView({ readIds, currentId, onSelect, onRead, onCurrent, onReset 
 export function App() {
   const initial = useMemo(loadProgress, [])
   const [view, setView] = useState<View>('map')
+  const [mapMode, setMapMode] = useState<MapMode>('reference')
   const [readIdsArray, setReadIdsArray] = useState(initial.readIds)
   const [currentId, setCurrentId] = useState(initial.currentId)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -294,7 +465,7 @@ export function App() {
   return <div className="app-shell">
     <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</div>
     <header className="topbar"><button className="brand-lockup" type="button" onClick={() => { setView('map'); setSelectedId(null) }}><span className="brand-mark"><Shield size={17} /></span><span><strong>PATHFINDER</strong><small>HORUS HERESY READING MAP</small></span></button><nav className="primary-nav" aria-label="Primary navigation"><button className={view === 'map' ? 'active' : ''} type="button" onClick={() => setView('map')}><Map size={15} />Campaign map</button><button className={view === 'atlas' ? 'active' : ''} type="button" onClick={() => setView('atlas')}><LibraryBig size={15} />Arc atlas</button><button className={view === 'library' ? 'active' : ''} type="button" onClick={() => setView('library')}><BookOpen size={15} />My library</button></nav><div className="topbar-status"><span className="signal-dot" />LOCAL ROUTE<span className="topbar-count">{readIds.size}/{books.length}</span></div></header>
-    <main>{view === 'map' ? <><section className="map-intro"><div><span className="panel-kicker"><Compass size={13} /> FIELD GUIDE / PERSONAL ROUTE</span><h1>Find the next book<br /><em>through the war.</em></h1></div><p>The Heresy is a branching campaign, not a queue. Mark where you are, then let the map show the pressure lines around it.</p></section><MapView currentId={currentId} selectedId={selectedId} readIds={readIds} search={search} arcFilter={arcFilter} routeOnly={routeOnly} onSelect={selectBook} onSearch={setSearch} onArcFilter={setArcFilter} onRouteOnly={setRouteOnly} onRead={toggleRead} onCurrent={setCurrent} /></> : view === 'atlas' ? <AtlasView readIds={readIds} currentId={currentId} onSelect={(book) => { setView('map'); setSelectedId(book.id) }} /> : <LibraryView readIds={readIds} currentId={currentId} onSelect={(book) => { setView('map'); setSelectedId(book.id) }} onRead={toggleRead} onCurrent={setCurrent} onReset={reset} />}</main>
+    <main>{view === 'map' ? <><section className="map-intro"><div><span className="panel-kicker"><Compass size={13} /> FIELD GUIDE / PERSONAL ROUTE</span><h1>Find the next book<br /><em>through the war.</em></h1></div><p>The Heresy is a branching campaign, not a queue. Mark where you are, then let the map show the pressure lines around it.</p></section><MapView mode={mapMode} onModeChange={setMapMode} currentId={currentId} selectedId={selectedId} readIds={readIds} search={search} arcFilter={arcFilter} routeOnly={routeOnly} onSelect={selectBook} onSearch={setSearch} onArcFilter={setArcFilter} onRouteOnly={setRouteOnly} onRead={toggleRead} onCurrent={setCurrent} /></> : view === 'atlas' ? <AtlasView readIds={readIds} currentId={currentId} onSelect={(book) => { setView('map'); setSelectedId(book.id) }} /> : <LibraryView readIds={readIds} currentId={currentId} onSelect={(book) => { setView('map'); setSelectedId(book.id) }} onRead={toggleRead} onCurrent={setCurrent} onReset={reset} />}</main>
     <footer className="site-footer"><span>CURATED EXPERIMENT / LOCAL-FIRST PROGRESS</span><span><a href="https://www.kylebb.com/HH/HHSeriesOrder.svg" target="_blank" rel="noreferrer">Reference flowchart <ArrowUpRight size={12} /></a><a href="https://gaming.kylebb.com/hhtimeline/" target="_blank" rel="noreferrer">Arc-driven timeline <ArrowUpRight size={12} /></a></span></footer>
   </div>
 }
