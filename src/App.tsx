@@ -204,7 +204,7 @@ function MapCanvas({
             <circle cx="1" cy="1" r="1.2" fill="rgba(117, 151, 144, 0.14)" />
           </pattern>
           <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-            <path d="M 0 0 L 6 3 L 0 6 Z" fill="#526660" />
+            <path d="M 0 0 L 6 3 L 0 6 Z" fill="var(--map-edge)" />
           </marker>
           <marker id="arrowhead-active" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
             <path d="M 0 0 L 6 3 L 0 6 Z" fill="#55b8b0" />
@@ -266,9 +266,9 @@ function flowEdgeMarkerId(mode: Exclude<MapMode, 'tactical'>, arc: ArcId, primar
   return `flow-arrow-${primary ? 'primary-' : ''}${mode}-${arc}`
 }
 
-function flowEdgeMarkerColour(colour: string, mode: Exclude<MapMode, 'tactical'>, primary: boolean) {
-  const mix = mode === 'reference' ? (primary ? 78 : 68) : primary ? 88 : 78
-  const background = mode === 'reference' ? '#182522' : '#0d1415'
+function flowEdgeMarkerColour(colour: string, mode: Exclude<MapMode, 'tactical'>) {
+  const mix = mode === 'reference' ? 50 : 90
+  const background = mode === 'reference' ? '#182522' : '#e8edeb'
   return `color-mix(in srgb, ${colour} ${mix}%, ${background})`
 }
 
@@ -360,14 +360,13 @@ function FlowMapCanvas({
   const { positions, width: flowWidth, height: flowHeight, rows } = buildFlowLayout(visibleBooks)
   const visibleIds = new Set(visibleBooks.map((book) => book.id))
   const visibleConnections = connections.filter((edge) => visibleIds.has(edge.from) && visibleIds.has(edge.to))
-  const displayedConnections = visibleConnections.filter((edge) => isDirectionalConnection(edge.kind) || Boolean(selectedId && (edge.from === selectedId || edge.to === selectedId)))
   const sameRowOutgoing = new globalThis.Map<string, string[]>()
   const sameRowIncoming = new globalThis.Map<string, string[]>()
   const crossLaneOutgoing = new globalThis.Map<string, string[]>()
   const crossLaneIncoming = new globalThis.Map<string, string[]>()
   const crossLaneChannels = new globalThis.Map<string, string[]>()
   const crossLaneTracks = new globalThis.Map<string, string[]>()
-  displayedConnections.forEach((edge) => {
+  visibleConnections.forEach((edge) => {
     const from = positions[edge.from]
     const to = positions[edge.to]
     const sameRow = from?.y === to?.y
@@ -384,7 +383,7 @@ function FlowMapCanvas({
       if (!tracks.includes(lanePairKey)) crossLaneTracks.set(corridorKey, [...tracks, lanePairKey])
     }
   })
-  const edgeRoutes = new globalThis.Map<string, FlowEdgeRoute>(displayedConnections.map((edge, index) => {
+  const edgeRoutes = new globalThis.Map<string, FlowEdgeRoute>(visibleConnections.map((edge, index) => {
     const sameRow = positions[edge.from]?.y === positions[edge.to]?.y
     const outgoing = sameRow ? sameRowOutgoing : crossLaneOutgoing
     const incoming = sameRow ? sameRowIncoming : crossLaneIncoming
@@ -418,15 +417,15 @@ function FlowMapCanvas({
   }))
   return (
     <div className={`flow-canvas-shell flow-${mode}`}>
-      <div className="flow-canvas-key" role="note" aria-label="Connection key"><span className="flow-key-direction">Colour follows the source arc · arrowheads mark destinations · select a book for related links</span><span className="flow-key-item"><span className="connection-key-line primary" />Main storyline</span><span className="flow-key-item"><span className="connection-key-line solid" />Branch / suggested</span><span className="flow-key-item"><span className="connection-key-line dashed" />Related / no order</span></div>
+      <div className="flow-canvas-key" role="note" aria-label="Connection key"><span className="flow-key-direction">Colour follows the source arc · arrowheads mark destinations · select a book to highlight its links</span><span className="flow-key-item"><span className="connection-key-line primary" />Main storyline</span><span className="flow-key-item"><span className="connection-key-line solid" />Branch / suggested</span><span className="flow-key-item"><span className="connection-key-line dashed" />Related / no order</span></div>
       <svg className="flow-canvas" style={{ width: `${flowWidth}px`, height: `${flowHeight}px` }} viewBox={`0 0 ${flowWidth} ${flowHeight}`} aria-hidden="true">
         <defs>
           {Object.entries(arcMeta).map(([arc, meta]) => <g key={arc}>
             <marker id={flowEdgeMarkerId(mode, arc as ArcId, false)} markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto" markerUnits="userSpaceOnUse">
-              <path d="M 0 0 L 8 4 L 0 8 Z" style={{ fill: flowEdgeMarkerColour(meta.colour, mode, false) }} />
+              <path d="M 0 0 L 8 4 L 0 8 Z" style={{ fill: flowEdgeMarkerColour(meta.colour, mode) }} />
             </marker>
             <marker id={flowEdgeMarkerId(mode, arc as ArcId, true)} markerWidth="14" markerHeight="14" refX="11" refY="5.5" orient="auto" markerUnits="userSpaceOnUse">
-              <path d="M 0 0 L 11 5.5 L 0 11 Z" style={{ fill: flowEdgeMarkerColour(meta.colour, mode, true) }} />
+              <path d="M 0 0 L 11 5.5 L 0 11 Z" style={{ fill: flowEdgeMarkerColour(meta.colour, mode) }} />
             </marker>
           </g>)}
         </defs>
@@ -447,7 +446,7 @@ function FlowMapCanvas({
           </g>
         )}
         <g className="flow-edges">
-          {displayedConnections.map((edge) => {
+          {visibleConnections.map((edge) => {
             const from = positions[edge.from]
             const to = positions[edge.to]
             if (!from || !to) return null
@@ -462,7 +461,7 @@ function FlowMapCanvas({
           {visibleBooks.map((book) => <FlowBookNode key={book.id} book={book} position={positions[book.id] || { x: 20, y: 20 }} mode={mode} selected={selectedId === book.id} readIds={readIds} currentId={currentId} recommended={recommendedIds.has(book.id)} onSelect={onSelect} />)}
         </g>
       </svg>
-      <div className="flow-canvas-note">{mode === 'reference' ? 'Bold arrows carry the main storyline into the destination card. Select a book to reveal related links without order.' : 'Bold arrows carry the main storyline into the destination. Select a book to reveal related links without order.'}</div>
+      <div className="flow-canvas-note">{mode === 'reference' ? 'Bold arrows carry the main storyline into the destination card. Dashed lines connect related books without prescribing an order.' : 'Bold arrows carry the main storyline into the destination. Dashed lines connect related books without prescribing an order.'}</div>
       <div className="map-accessible-list" aria-label="Books in the campaign map">
         <h2 className="sr-only">Campaign books</h2>
         <p className="sr-only">Use this keyboard-accessible list to inspect a book without navigating the visual map.</p>
@@ -543,9 +542,9 @@ function MapView({ mode, onModeChange, currentId, selectedId, readIds, search, a
         <label className="toggle-row"><span><Compass size={15} />Show reachable route</span><input type="checkbox" checked={routeOnly} onChange={(event) => onRouteOnly(event.target.checked)} /><span className="toggle-track" /></label>
         <div className="rail-note"><Target size={15} /><p><strong>Current position</strong><br />{bookById[currentId].title}</p></div>
         <div className="legend"><span className="panel-kicker">STATUS LEGEND</span><div><span className="legend-dot current" />Current</div><div><span className="legend-dot read" />Read</div><div><span className="legend-dot next" />Recommended next</div></div>
-        <div className="connection-key"><span className="panel-kicker">CONNECTION KEY</span><div className="connection-key-item"><span className="connection-key-line primary" /><span><strong>Bold arrow</strong><small>main storyline / direct continuation</small></span></div><div className="connection-key-item"><span className="connection-key-line solid" /><span><strong>Solid arrow</strong><small>branch continuation / suggested route</small></span></div><div className="connection-key-item"><span className="connection-key-line dashed" /><span><strong>Dashed line</strong><small>parallel or optional relationship · no reading order</small></span></div><p>Arrowheads mark destinations. Edge colour follows the source book’s arc; use the Story arcs swatches to identify it. Select a book to reveal related dashed links.</p></div>
+        <div className="connection-key"><span className="panel-kicker">CONNECTION KEY</span><div className="connection-key-item"><span className="connection-key-line primary" /><span><strong>Bold arrow</strong><small>main storyline / direct continuation</small></span></div><div className="connection-key-item"><span className="connection-key-line solid" /><span><strong>Solid arrow</strong><small>branch continuation / suggested route</small></span></div><div className="connection-key-item"><span className="connection-key-line dashed" /><span><strong>Dashed line</strong><small>parallel or optional relationship · no reading order</small></span></div><p>Arrowheads mark destinations. Edge colour follows the source book’s arc; use the Story arcs swatches to identify it. Dashed links show related books without prescribing an order. Select a book to highlight its connections.</p></div>
       </aside>
-      <section className="map-stage">{mode === 'tactical' ? <MapCanvas selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} routeIds={routeIds} recommendedIds={recommendedIds} onSelect={onSelect} /> : <FlowMapCanvas key={mode} mode={mode} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} recommendedIds={recommendedIds} onSelect={onSelect} />}<div className="map-footer"><span><span className="footer-line teal strong" />Main storyline</span><span><span className="footer-line" />Branch / suggested</span><span><span className="footer-line dashed" />Related links</span><span className="footer-note">{mode === 'tactical' ? 'Arrowheads mark the destination · dashed lines show related books · drag to pan · scroll to zoom' : 'Arrowheads mark the destination · select a book to reveal related links'}</span></div></section>
+      <section className="map-stage">{mode === 'tactical' ? <MapCanvas selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} routeIds={routeIds} recommendedIds={recommendedIds} onSelect={onSelect} /> : <FlowMapCanvas key={mode} mode={mode} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} recommendedIds={recommendedIds} onSelect={onSelect} />}<div className="map-footer"><span><span className="footer-line teal strong" />Main storyline</span><span><span className="footer-line" />Branch / suggested</span><span><span className="footer-line dashed" />Related links</span><span className="footer-note">{mode === 'tactical' ? 'Arrowheads mark the destination · dashed lines show related books · drag to pan · scroll to zoom' : 'Arrowheads mark the destination · dashed lines show related books'}</span></div></section>
       <aside className="inspector">
         {selected ? <BookDetail book={selected} readIds={readIds} currentId={currentId} onClose={() => onSelect(null)} onRead={onRead} onCurrent={onCurrent} /> : <RecommendationPanel recommendation={recommendations[0]} recommendations={recommendations} onSelect={onSelect} onRead={onRead} onCurrent={onCurrent} />}
         {!selected && <div className="inspector-divider"><span />YOUR ROUTE<span /></div>}
