@@ -1,205 +1,207 @@
 ---
-name: Pathfinder
-description: A campaign-map reading companion for the Horus Heresy.
+name: Pathfinder — Annotated edition
+description: A calm reading companion with book titles, story connections, and reader notes.
 colors:
-  ink: "#0a0d0f"
-  ink-soft: "#0f1516"
-  panel: "#11191a"
-  panel-raised: "#172121"
-  panel-line: "#2a3a39"
-  paper: "#e8edeb"
-  muted: "#879b96"
-  subtle: "#6f8c84"
-  teal: "#55b8b0"
-  teal-deep: "#1d5755"
-  gold: "#d2a85e"
-  ember: "#e0815d"
-  violet: "#a98dd6"
-  blue: "#7da9d6"
+  paper: "#f5f2e9"
+  sheet: "#fcfaf4"
+  ink: "#302e29"
+  muted: "#686358"
+  line: "#d4cfc2"
+  accent: "#873d32"
+  accent-hover: "#6d2e26"
+  selected: "#f0e3d5"
+  green: "#416450"
+  read-surface: "#e9eee6"
+  disabled: "#e9e5db"
 typography:
   display:
-    fontFamily: "Avenir Next, Segoe UI, sans-serif"
-    fontSize: "clamp(34px, 4.8vw, 64px)"
-    fontWeight: 650
-    lineHeight: 0.96
-    letterSpacing: "-0.055em"
+    fontFamily: "Libre Baskerville, Georgia, serif"
+    fontSize: "clamp(28px, 3vw, 40px)"
+    fontWeight: 400
+    letterSpacing: "-.025em"
+  reading-title:
+    fontFamily: "Libre Baskerville, Georgia, serif"
+    fontSize: "clamp(23px, 2.5vw, 34px)"
+    fontWeight: 400
+    lineHeight: 1.25
+    letterSpacing: "-.025em"
+  notes-title:
+    fontFamily: "Libre Baskerville, Georgia, serif"
+    fontSize: "26px"
+    fontWeight: 400
+    lineHeight: 1.3
+    letterSpacing: "-.025em"
+  list-title:
+    fontFamily: "Libre Baskerville, Georgia, serif"
+    fontSize: "15px"
+    fontWeight: 400
+    lineHeight: 1.45
   body:
     fontFamily: "Avenir Next, Segoe UI, sans-serif"
-    fontSize: "12px"
-    fontWeight: 400
+    fontSize: "13px"
     lineHeight: 1.6
-  label:
-    fontFamily: "SFMono-Regular, Consolas, monospace"
-    fontSize: "9px"
-    fontWeight: 700
-    lineHeight: 1.2
-    letterSpacing: "0.14em"
+  control:
+    fontFamily: "Avenir Next, Segoe UI, sans-serif"
+    fontSize: "13px"
+  navigation:
+    fontFamily: "Avenir Next, Segoe UI, sans-serif"
+    fontSize: "14px"
 rounded:
-  sm: "5px"
-  md: "9px"
-  lg: "14px"
+  control: "3px"
 spacing:
-  xs: "4px"
-  sm: "8px"
-  md: "13px"
-  lg: "19px"
-  xl: "34px"
+  compact: "8px"
+  related: "12px"
+  group: "18px"
+  mobile-gutter: "20px"
+  desktop-gutter: "44px"
 components:
   button-primary:
-    backgroundColor: "{colors.teal}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
-    padding: "0 11px"
-    height: "35px"
+    backgroundColor: "{colors.accent}"
+    textColor: "{colors.sheet}"
+    typography: "{typography.control}"
+    rounded: "{rounded.control}"
+    padding: "10px 15px"
+  button-primary-hover:
+    backgroundColor: "{colors.accent-hover}"
+    textColor: "{colors.sheet}"
   button-quiet:
     backgroundColor: "transparent"
-    textColor: "{colors.muted}"
-    rounded: "{rounded.sm}"
-    padding: "0 11px"
-    height: "35px"
-  map-panel:
-    backgroundColor: "{colors.panel}"
-    rounded: "{rounded.lg}"
-    padding: "19px"
+    textColor: "{colors.ink}"
+    typography: "{typography.control}"
+    rounded: "{rounded.control}"
+    padding: "10px 15px"
+  button-text:
+    textColor: "{colors.accent}"
+    typography: "{typography.control}"
+    padding: "8px 0"
+  search-field:
+    backgroundColor: "transparent"
+    textColor: "{colors.ink}"
+    height: "44px"
+  book-row-selected:
+    backgroundColor: "{colors.selected}"
+    textColor: "{colors.ink}"
+    padding: "8px"
+  map-surface:
+    backgroundColor: "{colors.sheet}"
+    height: "515px"
 ---
 
 # Design System: Pathfinder
 
 ## Overview
 
-**Creative North Star: "The Campaign Dossier"**
+**Creative North Star: "Annotated edition"**
 
-Pathfinder treats the reading order as a tactical map: dark enough to feel like a work surface, structured enough to make a dense graph legible, and marked with small heraldic signals that give each route identity. The visual language is original rather than a reproduction of proprietary Warhammer artwork or insignia.
+Pathfinder uses the visual language of a reading guide: warm paper, charcoal text, serif book titles, and small red annotations. The interface gives readers a clear next step while keeping the branching story visible. It is calm, readable, and personal.
 
-The interface uses tonal layering instead of decorative gloss. Teal carries action and route state; gold marks current position; faction colours are reserved for arc identity. The map itself is the primary material and the surrounding controls behave like a field console around it.
+Rules and open space separate content. Controls use plain sans-serif text. Book notes sit beside the material they explain. This approved direction replaces the former dark campaign-war-room style.
 
 **Key Characteristics:**
-- Ink-black canvas with gunmetal map plates.
-- Parchment-white type and restrained operational colour.
-- Pauldron-like node notches and compact mono labels.
-- Strong information hierarchy with minimal ornament.
+- Warm off-white surfaces and charcoal text.
+- Self-hosted serif book titles with sans-serif controls.
+- Muted red for actions, selection, and reading direction.
+- Thin rules and flat surfaces with little ornament.
+
+This document records the implementation in `src/styles.css` and `src/App.tsx`. It does not claim a completed visual or accessibility audit. The Explore composition is recorded separately in `.impeccable/surfaces/explore.md`.
 
 ## Colors
 
-The palette is dark and cool by default, with a teal route signal and a gold current-position marker. Supporting faction colours appear as small semantic accents rather than surface-wide decoration.
+The palette combines warm neutral surfaces with one muted red action colour. Green identifies reading progress.
 
 ### Primary
-- **Signal Teal** (#55b8b0): Primary actions, reachable edges, read state, and the recommended route.
-- **Current Gold** (#d2a85e): Current book, selected route position, and focused map state.
+- **Annotation Red** (`accent`): actions, active navigation, focus outlines, and selected connections.
+- **Deep Annotation Red** (`accent-hover`): primary button hover.
 
 ### Secondary
-- **Warm Ember** (#e0815d): Warmaster arc identity.
-- **Prospero Violet** (#a98dd6): Calth and Word Bearers arc identity.
-- **Legion Blue** (#7da9d6): Legion-collision arc identity.
+- **Reading Green** (`green`): finished marks and recommendation marks. Labels and symbols must also communicate state.
 
 ### Neutral
-- **Ink Black** (#0a0d0f): Application background.
-- **Ink Soft** (#0f1516): Recessed surfaces and map surroundings.
-- **Gunmetal Panel** (#11191a): Primary panels and inspectors.
-- **Raised Gunmetal** (#172121): Selected and hover surfaces.
-- **Paper White** (#e8edeb): Headings and primary text.
-- **Field Muted** (#879b96): Body text and secondary information.
-- **Field Subtle** (#6f8c84): Metadata, dividers, and low-priority labels. This is intentionally brighter than the original metadata tone so secondary information remains legible on the ink and panel surfaces.
+- **Paper** (`paper`): application background.
+- **Sheet** (`sheet`): map canvas and select controls; also text on primary actions.
+- **Charcoal** (`ink`): headings, book titles, and primary text.
+- **Pencil** (`muted`): metadata, explanations, and inactive navigation.
+- **Rule** (`line`): dividers, field borders, and map structure.
+- **Selected Paper** (`selected`): selected books and icon hover surfaces.
+- **Read Paper** (`read-surface`): finished map nodes.
+- **Disabled Paper** (`disabled`): unavailable actions.
 
-### Named Rules
-
-**The Signal Scarcity Rule.** Teal and gold are for state and action. Do not use them as generic decoration.
-
-### Semantic surface tokens
-
-The CSS keeps the tactical map hierarchy explicit through semantic aliases rather than repeating raw colour values:
-
-- **Field surfaces:** `--field-surface`, `--track-surface`, and `--map-surface` are recessed control, toggle, and map canvases.
-- **Map structure:** `--map-axis`, `--map-grid`, `--map-edge`, and `--map-divider` are reserved for measurement and route scaffolding.
-- **Node states:** `--node-surface`, `--node-hover`, `--node-selected`, `--node-read`, `--node-notch`, and `--node-current` preserve the visual distinction between spatial states.
-- **Control states:** `--action-ink`, `--action-hover`, `--quiet-border`, and `--quiet-hover` keep action contrast consistent without flattening faction colours.
+**The Annotation Rule.** Use red to identify an action, location, or connection. Do not fill large content surfaces with it. Arc colours remain small data-specific signals in the maps; they are not a second interface palette.
 
 ## Typography
 
-**Display Font:** Avenir Next, with Segoe UI fallback  
-**Body Font:** Avenir Next, with Segoe UI fallback  
-**Label/Mono Font:** SFMono-Regular, Consolas, monospace
+**Title Font:** Libre Baskerville, with Georgia and serif fallbacks. Normal and italic files are self-hosted under `public/fonts`, with their OFL licence. The loaded weight is regular; do not assume a bold face exists.
 
-**Character:** Compact, operational, and slightly compressed through tight display tracking. Mono labels are reserved for system metadata, counts, and route annotations.
+**Body and Control Font:** Avenir Next, with Segoe UI and sans-serif fallbacks. These are system fonts; no sans-serif font download is required.
+
+Book titles and page titles use the serif. Navigation, metadata, descriptions, and actions use the sans-serif. The italic “Book notes” heading gives the notes column its annotation character.
 
 ### Hierarchy
-- **Display** (`--type-display`, 650, `clamp(34px, 4.8vw, 64px)`, `.96`): Route-opening statements and primary view titles.
-- **Page title** (`--type-page-title`, `clamp(34px, 5vw, 57px)`): Atlas and library view titles.
-- **Title** (`--type-title`, 600, `clamp(21px, 2.2vw, 28px)`, `1.04`): Book names and inspector titles.
-- **Section heading** (`--type-section-title`, 20px): Arc headings and grouped content titles.
-- **Body** (`--type-body` / `--type-body-small`, 11–12px, `1.5–1.65`): Explanations and book summaries.
-- **Label** (`--type-label` / `--type-meta`, 700, 8–9px, `1.2`, tracked uppercase): Operational labels and map annotations.
-- **Control** (`--type-control`, 10px): Compact actions and map controls.
-- **Metric** (`--type-metric`, 24px): Library progress totals.
+- **Display:** page titles; on mobile the Explore title uses a fixed size (29px).
+- **Reading title:** current and recommended books; mobile uses a fixed size (23px).
+- **Notes title:** the selected book in the notes panel.
+- **List title:** books in the linear list; mobile reduces this to (14px).
+- **Body:** reading explanations and story notes. Reading explanations have a maximum measure (56ch).
+- **Control:** buttons and select inputs. Navigation and search use larger text (14px).
+- **Map labels:** compact sans-serif metadata (8–11px) with serif book titles. This density is specific to the graph, not a default for body text.
 
-Typefaces are also tokenized as `--font-sans` and `--font-mono` so components do not repeat the font stack.
-
-### Named Rules
-
-**The Two-Register Rule.** Use expressive sans-serif type for meaning and mono type for measurement, status, or classification.
-
-### Type and radius tokens
-
-The radius vocabulary is intentionally small: `--radius-xs` for angular pauldron corners, `--radius-sm` for controls, `--radius-md` for fields and inset surfaces, `--radius-lg` for panels, and `--radius-pill` only for the toggle track. New components should choose from this vocabulary rather than introduce a one-off radius.
+**The Book Title Rule.** Use serif text for book names. Keep controls in sans-serif so actions remain easy to identify.
 
 ## Layout
 
-The map screen uses a three-part desktop layout: a narrow route rail, a dominant centre canvas, and a right inspector. The centre map is the first-viewport thesis and should remain the largest element. Panels use a 13–14px gap and 14px outer radius.
+The shell has a maximum width (1800px). Desktop content uses generous side margins. At (1100px), margins reduce to (28px), toolbars wrap, and the notes column narrows from (294px) to (260px).
 
-At narrower widths the layout becomes vertical: route controls, map, then inspector. The canvas keeps its own large coordinate space so the graph remains explorable, while the accessible book list becomes visible as a keyboard-friendly companion below it. Secondary surfaces use a centred content measure of about 1180px.
+At (760px), navigation moves below the brand, content becomes one column, and notes move below the selected view. The mobile list and map toggle preserve access to the graph without making it the only way to browse. Long lists and maps scroll within their own bounded areas.
+
+Content groups use rules and space rather than separate cards for each item. Lists align book number, title, state, and action in columns. Preserve room for long titles and wrapping actions.
 
 ## Elevation & Depth
 
-Depth comes from tonal layering, a single soft ambient shadow under the map stage, and clear border strokes. Surfaces should feel like stacked plates rather than floating glass. Accent glow is reserved for the selected node and route signal.
-
-### Shadow Vocabulary
-- **Map stage ambient:** `0 22px 70px rgba(0, 0, 0, .24)`, used once under the central interactive canvas.
-- **Selected node signal:** a restrained `drop-shadow` around the gold outline, only while selected.
+The current interface uses no box shadows or decorative glow. Paper and sheet tones, thin borders, and selected fills provide depth. The map key overlays the map area with a sheet background and a rule border. Book notes use a divider rather than a floating panel.
 
 ## Shapes
 
-Panels use gently curved 14px corners. Controls use 5–9px corners. Book nodes are rectangular plates with a small angular notch at the upper left, echoing a pauldron silhouette without copying a specific faction mark. Borders are thin and structural.
+Primary and quiet actions and select inputs have small corners. Other sections are mostly square and separated by straight rules. Map nodes retain the geometry of each map view; do not promote the campaign node notch into a general interface motif.
 
 ## Components
 
 ### Buttons
-- **Shape:** compact 5–7px corners with clear text labels.
-- **Primary:** signal teal surface with ink text, 35px height, and a short icon label.
-- **Quiet:** transparent gunmetal control with a muted border and paper hover state.
-- **Focus:** gold outline with visible offset; never remove the native focus treatment.
 
-### Chips
-- **Style:** small faction or arc markers use a translucent tint of the owning accent and a thin border.
-- **State:** current and read statuses use different symbols and colours, so colour is not the only signal.
+Actions are plain and explicit. Primary actions use red with sheet-coloured text. Quiet actions use a rule border; hover changes the border and text to red. Text actions have no enclosing surface and gain an underline on hover. Primary and quiet actions have a minimum height (44px).
 
-### Cards / Containers
-- **Corner Style:** 14px for panels, 9px for inset explanation boxes.
-- **Background:** gunmetal tonal steps over the ink canvas.
-- **Border:** one thin structural border; avoid stacked borders.
-- **Internal Padding:** 15–19px for inspectors and route controls.
+Keyboard focus uses a red outline (2px) with an offset (4px). Disabled actions use disabled paper and muted text. Icon actions normally occupy (44px); the mobile list currently uses a narrower width (38px).
 
 ### Inputs / Fields
-- **Style:** dark recessed field, 1px gunmetal border, 9px radius, compact search icon.
-- **Focus:** gold focus ring and preserved border contrast.
+
+Search sits directly on the page surface with a search icon. Focus outlines the entire search group (2px), with an offset (2px). Select controls use a sheet background, a thin rule border, and the small control radius. Labels remain available to assistive technology when mobile hides their visible text.
 
 ### Navigation
-- **Style:** top navigation is compact and low-chrome. Active views use a teal underline and paper text; inactive views use muted text.
-- **Mobile:** navigation wraps below the brand lockup and remains horizontally scrollable.
 
-### Campaign Nodes
+Active navigation uses red text and a thin red underline. Inactive navigation uses pencil text, with red on hover. On mobile the three navigation actions occupy a full row below the brand.
 
-Nodes are SVG plates with a faction label, title, book metadata, and a pauldron-inspired notch. Read, current, selected, and recommended states alter the plate treatment and include distinct status marks.
+### Book Rows
+
+Book rows use a bottom rule and a selected-paper fill when selected. Serif titles lead, with arc metadata beneath. State is written as Finished, Reading, or Unread; an icon action can change the finished state. Rows have a minimum height (76px).
+
+### Book Notes
+
+Notes use an italic serif heading and a larger serif book title. Reading actions precede expandable story notes. Spoiler level appears in the disclosure label. Connections remain labelled as direct continuations, prerequisites, parallel stories, or optional stories. The desktop panel is sticky and scrolls if it exceeds the viewport; mobile places it in normal document flow.
+
+### Story Maps
+
+Maps use sheet surfaces, compact book plates, and red connection emphasis. Solid, bold, and dashed lines distinguish relationship types. Selected, current, finished, and recommended states use borders, fills, and symbols. The map legend explains these marks in plain language. The only explicit transition is the flow edge stroke change (180ms ease-out); reduced-motion preferences disable transitions.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** make the map, not a hero banner, the first thing the reader understands.
-- **Do** reserve teal for progress, action, and reachable route state.
-- **Do** use original geometric insignia and labelled faction data rather than copying proprietary marks.
-- **Do** provide a list-based alternative whenever the graph is difficult to navigate.
+- **Do** keep book titles readable and controls explicit.
+- **Do** use rules and space to separate related content.
+- **Do** pair colour with labels or symbols for reading state.
+- **Do** keep a linear alternative to each graph-based browsing journey.
+- **Do** retain the distinction between curated suggestions and an official reading order.
 
 ### Don't:
-- **Don't** turn the map into a generic dashboard of equal cards.
-- **Don't** use gradients, neon glows, or colour as decoration without route meaning.
-- **Don't** make the small operational kicker labels into a universal page-eyebrow pattern; they are currently map-specific metadata.
-- **Don't** imply that the graph's curated relationships are an official or exhaustive reading order.
+- **Don't** restore the dark war-room palette or decorative glow.
+- **Don't** use campaign insignia as general control decoration.
+- **Don't** copy unlicensed cover art or proprietary logos into the interface.
+- **Don't** conceal story spoilers inside an always-open visual summary.

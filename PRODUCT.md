@@ -37,7 +37,7 @@ The reader explores a dense flowchart, searches for a book or arc, selects a boo
 
 ## Brand Commitments
 
-The visual direction is an original campaign-war-room system inspired by Warhammer and Space Marine themes: dark tactical surfaces, restrained faction colour, and pauldron-inspired path markers with original geometric insignia. Do not copy proprietary logos, exact chapter insignia, or unlicensed cover artwork into the product.
+The approved visual direction is Annotated edition: warm off-white surfaces, charcoal text, muted red annotations, and self-hosted Libre Baskerville book titles with sans-serif controls. The interface should feel like a calm reading companion. Reading recommendations and the branching story both need clear access. Do not copy proprietary logos, exact chapter insignia, or unlicensed cover artwork into the product.
 
 ## Evidence on Hand
 

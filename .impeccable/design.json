@@ -1,49 +1,169 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-09T00:00:00.000Z",
+  "generatedAt": "2026-09-22T21:38:39.570458+00:00",
   "title": "Design System: Pathfinder",
   "extensions": {
     "colorMeta": {
-      "ink": { "role": "neutral", "displayName": "Ink Black", "canonical": "#0a0d0f", "tonalRamp": ["#0a0d0f", "#111719", "#1b2524", "#2a3937", "#435552", "#6c8580", "#b4c5c0", "#e8edeb"] },
-      "teal": { "role": "primary", "displayName": "Signal Teal", "canonical": "#55b8b0", "tonalRamp": ["#102e2d", "#174a47", "#216662", "#338780", "#55b8b0", "#78c9c2", "#aedfd9", "#e8f4f1"] },
-      "gold": { "role": "secondary", "displayName": "Current Gold", "canonical": "#d2a85e", "tonalRamp": ["#382a13", "#62481e", "#8e6b2d", "#b48b47", "#d2a85e", "#e2c483", "#eedbb0", "#faf2dd"] },
-      "ember": { "role": "secondary", "displayName": "Warm Ember", "canonical": "#e0815d", "tonalRamp": ["#401a12", "#67281b", "#98402b", "#bd5e42", "#e0815d", "#ed9e84", "#f5c2b1", "#fdebe5"] },
-      "violet": { "role": "tertiary", "displayName": "Prospero Violet", "canonical": "#a98dd6", "tonalRamp": ["#2c1d44", "#49316d", "#654591", "#8266b6", "#a98dd6", "#c2ace4", "#ded1f0", "#f4effa"] },
-      "blue": { "role": "tertiary", "displayName": "Legion Blue", "canonical": "#7da9d6", "tonalRamp": ["#182f4a", "#254c70", "#356b99", "#568ac0", "#7da9d6", "#9fc1e5", "#c9ddf1", "#edf5fb"] }
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper"
+      },
+      "sheet": {
+        "role": "neutral",
+        "displayName": "Sheet"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Charcoal"
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Pencil"
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Rule"
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Annotation Red"
+      },
+      "green": {
+        "role": "secondary",
+        "displayName": "Reading Green"
+      },
+      "selected": {
+        "role": "neutral",
+        "displayName": "Selected Paper"
+      }
     },
     "typographyMeta": {
-      "display": { "displayName": "Campaign Display", "purpose": "Route-opening statements and primary view titles." },
-      "label": { "displayName": "Field Mono", "purpose": "Counts, metadata, statuses, and map annotations." }
+      "display": {
+        "displayName": "Page title",
+        "purpose": "Main view headings."
+      },
+      "reading-title": {
+        "displayName": "Reading title",
+        "purpose": "Current and recommended books."
+      },
+      "notes-title": {
+        "displayName": "Notes title",
+        "purpose": "Selected book in the notes panel."
+      },
+      "list-title": {
+        "displayName": "List title",
+        "purpose": "Book names in the linear list."
+      },
+      "body": {
+        "displayName": "Reading text",
+        "purpose": "Explanations and story notes."
+      },
+      "control": {
+        "displayName": "Control text",
+        "purpose": "Actions and select controls."
+      }
     },
-    "shadows": [
-      { "name": "map-stage-ambient", "value": "0 22px 70px rgba(0, 0, 0, .24)", "purpose": "Single ambient lift under the interactive map." },
-      { "name": "selected-node-signal", "value": "drop-shadow(0 0 8px rgba(210, 168, 94, .15))", "purpose": "Restrained selection emphasis for the current node." }
-    ],
+    "shadows": [],
     "motion": [
-      { "name": "state-standard", "value": "all .2s ease", "purpose": "Short state changes on controls and map nodes." }
+      {
+        "name": "flow-edge-stroke",
+        "value": "stroke 180ms ease-out",
+        "purpose": "Connection state changes; disabled by reduced-motion preferences."
+      }
     ],
     "breakpoints": [
-      { "name": "map-stack", "value": "1180px" },
-      { "name": "mobile", "value": "820px" },
-      { "name": "compact", "value": "520px" }
-    ],
-    "components": [
-      { "name": "Primary Button", "kind": "button", "refersTo": "button-primary", "description": "Teal action button for marking progress.", "html": "<button class=\"ds-btn-primary\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m5 12 4 4L19 6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/></svg> MARK READ</button>", "css": ".ds-btn-primary { display:inline-flex; align-items:center; gap:7px; height:35px; padding:0 11px; border:1px solid #55b8b0; border-radius:5px; color:#0a0d0f; background:#55b8b0; font:600 10px/1 'Avenir Next','Segoe UI',sans-serif; cursor:pointer; transition:background .2s ease,color .2s ease; } .ds-btn-primary:hover,.ds-btn-primary:focus-visible { color:#0a0d0f; background:#73cbc2; } .ds-btn-primary svg { width:15px; height:15px; }" },
-      { "name": "Quiet Button", "kind": "button", "refersTo": "button-quiet", "description": "Low-chrome secondary action.", "html": "<button class=\"ds-btn-quiet\">SET CURRENT</button>", "css": ".ds-btn-quiet { height:35px; padding:0 11px; border:1px solid #39504b; border-radius:5px; color:#879b96; background:transparent; font:600 10px/1 'Avenir Next','Segoe UI',sans-serif; cursor:pointer; } .ds-btn-quiet:hover,.ds-btn-quiet:focus-visible { color:#e8edeb; border-color:#6f8e87; background:#1a2827; }" },
-      { "name": "Search Field", "kind": "input", "refersTo": "map-panel", "description": "Recessed map search with operational iconography.", "html": "<label class=\"ds-search\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"11\" cy=\"11\" r=\"6\" fill=\"none\" stroke=\"currentColor\"/><path d=\"m16 16 4 4\" stroke=\"currentColor\"/></svg><input placeholder=\"Search books or legions\" /></label>", "css": ".ds-search { display:flex; align-items:center; gap:8px; min-height:37px; padding:0 10px; border:1px solid #304341; border-radius:9px; color:#879b96; background:#0e1617; } .ds-search:focus-within { border-color:#d2a85e; outline:2px solid rgba(210,168,94,.3); outline-offset:2px; } .ds-search svg { width:16px; height:16px; } .ds-search input { min-width:0; width:100%; border:0; outline:0; color:#e8edeb; background:none; font:11px 'Avenir Next','Segoe UI',sans-serif; }" },
-      { "name": "Faction Chip", "kind": "chip", "refersTo": "map-panel", "description": "Small coloured faction identity marker.", "html": "<span class=\"ds-chip\">LUNA WOLVES</span>", "css": ".ds-chip { display:inline-flex; padding:5px 7px; border:1px solid rgba(85,184,176,.45); border-radius:5px 8px 8px 3px; color:#55b8b0; background:rgba(85,184,176,.12); font:8px/1 'SFMono-Regular',Consolas,monospace; letter-spacing:.06em; }" },
-      { "name": "Campaign Node", "kind": "custom", "refersTo": "map-panel", "description": "SVG book plate with pauldron-inspired notch and status state.", "html": "<div class=\"ds-node\"><span class=\"ds-node-notch\"></span><small>LUNA WOLVES</small><strong>Horus Rising</strong><em>NOVEL · 01</em></div>", "css": ".ds-node { width:180px; min-height:74px; padding:11px 16px; border:1px solid #3a514d; border-radius:12px; color:#e8edeb; background:#152020; position:relative; } .ds-node-notch { position:absolute; top:0; left:0; width:30px; height:24px; border:1px solid #608b83; border-radius:12px 0 8px 0; background:#233a37; } .ds-node small,.ds-node em { display:block; color:#7b9790; font:7px/1.2 'SFMono-Regular',Consolas,monospace; letter-spacing:.07em; } .ds-node strong { display:block; margin:12px 0 8px; font:600 13px/1 'Avenir Next','Segoe UI',sans-serif; }" }
-    ],
-    "narrative": {
-      "northStar": "The Campaign Dossier",
-      "overview": "Pathfinder treats the reading order as a tactical map: dark enough to feel like a work surface, structured enough to make a dense graph legible, and marked with small heraldic signals that give each route identity. The visual language is original rather than a reproduction of proprietary Warhammer artwork or insignia.\n\nThe interface uses tonal layering instead of decorative gloss. Teal carries action and route state; gold marks current position; faction colours are reserved for arc identity. The map itself is the primary material and the surrounding controls behave like a field console around it.",
-      "keyCharacteristics": ["Ink-black canvas with gunmetal map plates.", "Parchment-white type and restrained operational colour.", "Pauldron-like node notches and compact mono labels.", "Strong information hierarchy with minimal ornament."],
-      "rules": [
-        { "name": "The Signal Scarcity Rule", "body": "Teal and gold are for state and action. Do not use them as generic decoration.", "section": "colors" },
-        { "name": "The Two-Register Rule", "body": "Use expressive sans-serif type for meaning and mono type for measurement, status, or classification.", "section": "typography" }
-      ],
-      "dos": ["Do make the map, not a hero banner, the first thing the reader understands.", "Do reserve teal for progress, action, and reachable route state.", "Do use original geometric insignia and labelled faction data rather than copying proprietary marks.", "Do provide a list-based alternative whenever the graph is difficult to navigate."],
-      "donts": ["Don't turn the map into a generic dashboard of equal cards.", "Don't use gradients, neon glows, or colour as decoration without route meaning.", "Don't make the small operational kicker labels into a universal page-eyebrow pattern; they are currently map-specific metadata.", "Don't imply that the graph's curated relationships are an official or exhaustive reading order."]
+      {
+        "name": "compact-desktop",
+        "value": "1100px"
+      },
+      {
+        "name": "mobile",
+        "value": "760px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary action",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Starts the selected reading choice.",
+      "html": "<button class=\"ds-primary\">Read this next</button>",
+      "css": ".ds-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px 15px;border:1px solid var(--accent);border-radius:3px;font-size:13px;cursor:pointer;font-family:'Avenir Next','Segoe UI',sans-serif;background:var(--accent);color:var(--sheet);}.ds-primary:hover{background:#6d2e26;border-color:#6d2e26;}.ds-primary:focus-visible{outline:2px solid var(--accent);outline-offset:4px;}"
+    },
+    {
+      "name": "Quiet action",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Changes progress without competing with the primary action.",
+      "html": "<button class=\"ds-quiet\">Mark finished</button>",
+      "css": ".ds-quiet{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px 15px;border:1px solid var(--accent);border-radius:3px;font-size:13px;cursor:pointer;font-family:'Avenir Next','Segoe UI',sans-serif;background:transparent;color:var(--ink);border-color:var(--line);}.ds-quiet:hover{color:var(--accent);border-color:var(--accent);}.ds-quiet:focus-visible{outline:2px solid var(--accent);outline-offset:4px;}"
+    },
+    {
+      "name": "Text action",
+      "kind": "button",
+      "refersTo": "button-text",
+      "description": "A secondary link-like action.",
+      "html": "<button class=\"ds-text\">Show on map</button>",
+      "css": ".ds-text{display:inline-flex;align-items:center;min-height:44px;padding:8px 0;border:0;background:none;color:var(--accent);font-size:13px;cursor:pointer;font-family:'Avenir Next','Segoe UI',sans-serif;}.ds-text:hover{text-decoration:underline;text-underline-offset:4px;}.ds-text:focus-visible{outline:2px solid var(--accent);outline-offset:4px;}"
+    },
+    {
+      "name": "Search field",
+      "kind": "input",
+      "refersTo": "search-field",
+      "description": "Searches titles or legions.",
+      "html": "<label class=\"ds-search\"><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"10\" cy=\"10\" r=\"6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"m15 15 5 5\" stroke=\"currentColor\" stroke-width=\"2\"/></svg><input aria-label=\"Search books or legions\" placeholder=\"Find a book or legion\"></label>",
+      "css": ".ds-search{display:flex;align-items:center;gap:10px;color:var(--muted);}.ds-search input{min-width:0;width:100%;height:44px;border:0;background:transparent;color:var(--ink);font-size:14px;font-family:'Avenir Next','Segoe UI',sans-serif;}.ds-search input::placeholder{color:var(--muted);}.ds-search:focus-within{outline:2px solid var(--accent);outline-offset:2px;}.ds-search input:focus-visible{outline:none;}"
+    },
+    {
+      "name": "Primary navigation",
+      "kind": "nav",
+      "description": "The three main reading views.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Primary navigation\"><button aria-current=\"page\">Explore</button><button>Story arcs</button><button>My library</button></nav>",
+      "css": ".ds-nav{display:flex;gap:27px;border-bottom:1px solid var(--line);}.ds-nav button{min-height:44px;padding:0 1px;border:0;border-bottom:2px solid transparent;background:none;color:var(--muted);font-size:14px;cursor:pointer;font-family:'Avenir Next','Segoe UI',sans-serif;}.ds-nav button[aria-current]{color:var(--accent);border-bottom-color:var(--accent);}.ds-nav button:hover{color:var(--accent);}.ds-nav button:focus-visible{outline:2px solid var(--accent);outline-offset:4px;}"
+    },
+    {
+      "name": "Selected book row",
+      "kind": "custom",
+      "refersTo": "book-row-selected",
+      "description": "A book in the linear browsing alternative.",
+      "html": "<div class=\"ds-row\"><span>01</span><button aria-pressed=\"true\"><strong>Horus Rising</strong><small>The Warmaster\u2019s fall</small></button><span>Reading</span></div>",
+      "css": ".ds-row{display:grid;grid-template-columns:29px minmax(0,1fr) 82px;align-items:center;gap:10px;min-height:76px;padding:8px;border-bottom:1px solid var(--line);background:var(--selected);color:var(--muted);font-size:12px;font-family:'Avenir Next','Segoe UI',sans-serif;}.ds-row button{text-align:left;padding:6px 0;border:0;background:none;color:var(--ink);cursor:pointer;}.ds-row strong{display:block;font:400 15px/1.45 var(--serif);}.ds-row small{display:block;margin-top:4px;color:var(--muted);font-size:11px;font-family:'Avenir Next','Segoe UI',sans-serif;}.ds-row button:hover strong{color:var(--accent);}.ds-row button:focus-visible{outline:2px solid var(--accent);outline-offset:4px;}"
     }
+  ],
+  "narrative": {
+    "northStar": "Annotated edition",
+    "overview": "Pathfinder uses warm paper, charcoal text, serif book titles, and small red annotations. Readers can choose a next book while keeping the branching story visible. Rules and open space separate content; sans-serif controls remain clear. This direction replaces the former dark campaign-war-room style.",
+    "keyCharacteristics": [
+      "Warm off-white surfaces and charcoal text.",
+      "Self-hosted serif book titles with sans-serif controls.",
+      "Muted red for actions, selection, and reading direction.",
+      "Thin rules and flat surfaces with little ornament."
+    ],
+    "rules": [
+      {
+        "name": "The Annotation Rule",
+        "body": "Use red to identify an action, location, or connection. Do not fill large content surfaces with it.",
+        "section": "colors"
+      },
+      {
+        "name": "The Book Title Rule",
+        "body": "Use serif text for book names. Keep controls in sans-serif so actions remain easy to identify.",
+        "section": "typography"
+      }
+    ],
+    "dos": [
+      "Do keep book titles readable and controls explicit.",
+      "Do use rules and space to separate related content.",
+      "Do pair colour with labels or symbols for reading state.",
+      "Do keep a linear alternative to graph-based browsing.",
+      "Do distinguish curated suggestions from an official reading order."
+    ],
+    "donts": [
+      "Do not restore the dark war-room palette or decorative glow.",
+      "Do not use campaign insignia as general control decoration.",
+      "Do not copy unlicensed cover art or proprietary logos.",
+      "Do not expose story spoilers in an always-open visual summary."
+    ]
   }
 }
