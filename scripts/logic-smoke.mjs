@@ -75,3 +75,16 @@ run('keeps direct continuations distinct from suggested bridges', () => {
 })
 
 console.log('Recommendation logic smoke tests passed.')
+
+const { toggleFinished } = await import('../src/progress.ts')
+run('finishing another book preserves the current reading position', () => {
+  const progress = { readIds: ['horus-rising'], currentId: 'false-gods' }
+  const next = toggleFinished(progress, 'legion')
+  assert.equal(next.currentId, 'false-gods')
+  assert.deepEqual(next.readIds, ['horus-rising', 'legion'])
+  assert.deepEqual(progress.readIds, ['horus-rising'])
+})
+run('marking a book unread keeps other progress and the reading position', () => {
+  const next = toggleFinished({ readIds: ['horus-rising', 'legion'], currentId: 'false-gods' }, 'legion')
+  assert.deepEqual(next, { readIds: ['horus-rising'], currentId: 'false-gods' })
+})
