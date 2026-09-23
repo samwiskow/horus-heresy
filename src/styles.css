@@ -17,7 +17,7 @@
   --serif: 'Libre Baskerville', Georgia, serif;
   --gold: #873d32;
   --teal: #416450;
-  --map-edge: #8c877c;
+  --map-edge: #6f6a60;
   --map-grid: #d4cfc2;
   accent-color: var(--accent);
   scrollbar-color: #b2aa99 var(--paper);
@@ -90,6 +90,7 @@ main { padding: 0 44px 26px; }
 .select-field select { max-width: 230px; min-height: 44px; padding: 8px 25px 8px 10px; border: 1px solid var(--line); border-radius: 3px; background: var(--sheet); color: var(--ink); font-size: 13px; }
 .route-checkbox { display: flex; align-items: center; gap: 7px; min-height: 44px; font-size: 12px; }
 .route-checkbox input { width: 16px; height: 16px; }
+.highlight-checkbox { color: var(--ink); font-weight: 600; }
 .atlas-workspace { display: block; }
 .atlas-main, .collection-books { min-width: 0; }
 .map-meta { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 10px 0; color: var(--muted); font-size: 11px; }
@@ -97,6 +98,12 @@ main { padding: 0 44px 26px; }
 .map-key summary { min-height: 32px; align-content: center; }
 .map-key > div { position: absolute; z-index: 5; top: 36px; right: 0; width: 280px; padding: 18px; background: var(--sheet); border: 1px solid var(--line); color: var(--ink); font-size: 13px; }
 .map-key p { margin: 0 0 10px; }
+.next-paths { display: flex; align-items: baseline; flex-wrap: wrap; gap: 8px 16px; padding: 10px 0 13px; border-top: 1px solid var(--line); color: var(--ink); font-size: 12px; }
+.next-paths > strong { font-weight: 600; }
+.next-paths > div { display: flex; flex-wrap: wrap; gap: 5px 15px; }
+.next-paths button { display: inline-flex; align-items: center; gap: 5px; padding: 2px 0; color: var(--accent); text-align: left; }
+.next-paths button:hover { text-decoration: underline; text-underline-offset: 3px; }
+.next-paths button small { margin-left: 5px; color: var(--muted); font-size: 10px; }
 .atlas-map { position: relative; height: clamp(580px, 75vh, 900px); border: 1px solid var(--line); background: var(--sheet); }
 .flow-map-layout { position: relative; width: 100%; height: 100%; }
 .flow-canvas-shell { width: 100%; height: 100%; overflow: auto; overscroll-behavior: contain; }
@@ -104,27 +111,28 @@ main { padding: 0 44px 26px; }
 .atlas-overview:hover { border-color: var(--accent); }
 .overview-label { display: block; margin-bottom: 8px; color: var(--ink); font-size: 10px; }
 .overview-chart { position: relative; display: block; height: 104px; background: var(--paper); overflow: hidden; }
-.overview-lane { position: absolute; left: 4px; right: 4px; height: 3px; opacity: .75; }
+.overview-lane { position: absolute; left: 4px; right: 4px; height: 4px; }
 .overview-current { position: absolute; width: 8px; height: 8px; margin: -4px; border: 1px solid var(--sheet); border-radius: 50%; background: var(--accent); z-index: 1; }
 .overview-window { position: absolute; border: 2px solid var(--accent); background: rgba(135, 61, 50, .08); pointer-events: none; }
 .flow-canvas { display: block; }
 .flow-surface { fill: var(--sheet); }
 .flow-title { fill: var(--muted); font-size: 11px; letter-spacing: .08em; }
 .flow-direction { fill: var(--muted); font-size: 10px; text-anchor: end; }
-.flow-lane-band { fill: color-mix(in srgb, var(--lane-colour) 5%, var(--sheet)); stroke: none; }
+.flow-lane-band { fill: color-mix(in srgb, var(--lane-colour) 16%, var(--sheet)); stroke: none; }
 .flow-lane-rule { stroke: var(--line); stroke-width: 1; }
 .flow-lane-label, .flow-column-label { fill: var(--muted); font-size: 10px; font-weight: 600; letter-spacing: .02em; }
 .flow-lane-sub { fill: var(--muted); font-size: 10px; }
 .flow-reference-guides line { stroke: var(--line); }
-.flow-edge { fill: none; stroke: #979183; stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; transition: stroke 180ms ease-out; }
+.flow-edge { fill: none; stroke: #6f6a60; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; transition: stroke 180ms ease-out; }
 .flow-edge.sequel { stroke-width: 2.3; }
 .flow-edge.parallel, .flow-edge.optional { stroke-dasharray: 4 5; }
-.flow-edge.active, .flow-edge.focused { stroke: var(--accent); stroke-width: 2; }
-.flow-edge.focused.sequel { stroke-width: 3; }
-.flow-edge.dimmed { opacity: .18; }
+.flow-edge.active { stroke: var(--accent); stroke-width: 3; }
+.flow-edge.active.sequel { stroke-width: 3.5; }
+.flow-edge.dimmed { opacity: .38; }
 .flow-node { cursor: pointer; }
-.flow-node-plate { fill: var(--sheet); stroke: #b9b1a0; stroke-width: 1; }
-.flow-node-accent { fill: #9d9481; }
+.flow-node-plate { fill: var(--sheet); stroke: #8d877b; stroke-width: 1.2; }
+.flow-node-accent { fill: color-mix(in srgb, var(--flow-accent) 55%, #292823); }
+.paths-highlighted .flow-node:not(.dimmed) .flow-node-plate { stroke: var(--accent); stroke-width: 2; }
 .flow-node-title { fill: var(--ink); font-family: var(--serif); font-size: 13px; }
 .flow-node-faction { fill: var(--muted); font-size: 8px; letter-spacing: .04em; }
 .flow-node-meta { fill: var(--muted); font-size: 10px; }
@@ -197,21 +205,25 @@ main { padding: 0 44px 26px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .mobile-map-toggle, .mobile-book-list { display: none; }
 .map-fullscreen-close { display: none; }
+.map-highlight-mobile { display: none; }
 .map-canvas-shell { position: relative; height: 100%; overflow: hidden; }
 .map-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 .map-controls { position: absolute; top: 10px; right: 10px; display: flex; align-items: center; border: 1px solid var(--line); background: var(--sheet); }
 .zoom-label { font-size: 11px; width: 36px; text-align: center; }
+.map-text-control { min-height: 42px; padding: 0 9px; color: var(--ink); font-size: 11px; }
+.map-text-control:hover { color: var(--accent); }
 .map-hint { position: absolute; bottom: 12px; left: 12px; font-size: 11px; background: var(--sheet); padding: 5px; }
-.map-edge { fill: none; stroke: #9a9486; stroke-width: 2; }
-.map-edge.active, .map-edge.focused { stroke: var(--accent); }
-.map-edge.dimmed { opacity: .15; }
+.map-edge { fill: none; stroke: var(--map-edge); stroke-width: 2.2; }
+.map-edge.active { stroke: var(--accent); stroke-width: 3.5; }
+.map-edge.dimmed { opacity: .38; }
 .map-edge.parallel, .map-edge.optional { stroke-dasharray: 4 5; }
 .map-node { cursor: pointer; }
-.node-plate { fill: var(--sheet); stroke: #a59b87; }
+.node-plate { fill: var(--sheet); stroke: #8d877b; }
+.paths-highlighted .map-node:not(.dimmed) .node-plate { stroke: var(--accent); stroke-width: 2; }
 .map-node.selected .node-plate, .map-node.current .node-plate { fill: var(--selected); stroke: var(--accent); stroke-width: 2; }
 .map-node.read .node-plate { fill: #e9eee6; }
 .node-focus-ring { fill: none; stroke: var(--accent); stroke-dasharray: 3 4; }
-.node-notch { fill: #d8cbb2; }
+.node-notch { fill: var(--node-accent); }
 .node-title { fill: var(--ink); font-family: var(--serif); font-size: 12px; }
 .node-faction, .node-meta { fill: var(--muted); font-size: 8px; }
 .status-mark, .recommend-dot { color: var(--green); fill: var(--green); }
@@ -253,10 +265,14 @@ main { padding: 0 44px 26px; }
   .select-field > span { display: none; }
   .select-field select { max-width: 190px; }
   .route-checkbox { margin-left: auto; font-size: 11px; }
+  .highlight-checkbox { flex-basis: 100%; margin-left: 0; }
   .view-select { display: none; }
   .atlas-map { display: none; }
   .atlas-map.mobile-expanded { position: fixed; z-index: 20; inset: 0; display: block; width: 100vw; height: 100dvh; border: 0; }
   .map-fullscreen-close { position: absolute; z-index: 2; display: inline-flex; top: 12px; left: 12px; background: var(--sheet); }
+  .map-highlight-mobile { position: absolute; z-index: 2; top: 12px; right: 12px; display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 10px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); font-size: 12px; font-weight: 600; }
+  .map-highlight-mobile input { width: 16px; height: 16px; }
+  .mobile-expanded .map-controls { top: 66px; }
   .mobile-book-list, .mobile-map-toggle { display: block; }
   .mobile-map-toggle { display: flex; padding: 0 0 12px; }
   .mobile-hidden { display: none; }

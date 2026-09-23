@@ -31,47 +31,47 @@ export const arcMeta: Record<ArcId, { label: string; blurb: string; colour: stri
   opening: {
     label: 'The opening campaign',
     blurb: 'The expedition, the first betrayals, and the moment the Great Crusade fractures.',
-    colour: '#55b8b0',
+    colour: '#246f68',
   },
   legions: {
     label: 'Legions in collision',
     blurb: 'Prospero, the Alpha Legion, the Iron Hands, and the wars that spread the fire.',
-    colour: '#7da9d6',
+    colour: '#375f94',
   },
   'dark-angels': {
     label: 'The Lion & Caliban',
     blurb: 'The First Legion’s divided loyalties, the fall of Caliban, and the return of the Lion.',
-    colour: '#879f91',
+    colour: '#4d6f57',
   },
   calth: {
     label: 'Calth & the Word Bearers',
     blurb: 'A focused route through faith, betrayal, and the battle that remakes the XIII.',
-    colour: '#a98dd6',
+    colour: '#775495',
   },
   salamanders: {
     label: 'Vulkan & the Salamanders',
     blurb: 'Vulkan’s survival, the XVIII Legion’s long road, and the cost of endurance after Isstvan.',
-    colour: '#9aaf73',
+    colour: '#5c7136',
   },
   shattered: {
     label: 'The Shattered Legions',
     blurb: 'Iron Hands, Raven Guard, and Salamanders fight a war of survival behind enemy lines.',
-    colour: '#b88778',
+    colour: '#935849',
   },
   imperial: {
     label: 'Loyalist convergence',
     blurb: 'The loyalist legions gather, regroup, and find the routes that can still reach Terra.',
-    colour: '#899fc5',
+    colour: '#4b6395',
   },
   warmaster: {
     label: 'The Warmaster ascendant',
     blurb: 'The rebellion gathers its strength while loyalist resistance hardens around it.',
-    colour: '#e0815d',
+    colour: '#a55130',
   },
   siege: {
     label: 'The road to Terra',
     blurb: 'The final approach: broken alliances, the Ruinstorm, and the doors of the Palace.',
-    colour: '#d2a85e',
+    colour: '#80621f',
   },
 }
 
@@ -168,7 +168,7 @@ const bookSeeds: BookSeed[] = [
   },
   {
     id: 'praetorian-dorn', title: 'The Praetorian of Dorn', shortTitle: 'Praetorian of Dorn', kind: 'novel', seriesNumber: 39,
-    arc: 'imperial', faction: 'Imperial Fists', spoilerLevel: 'high', accent: '#899fc5', x: 960, y: 325,
+    arc: 'imperial', faction: 'Imperial Fists', spoilerLevel: 'high', accent: '#899fc5', x: 960, y: 425,
     summary: 'The Imperial Fists meet the Alpha Legion in the tightening approach to Terra.',
     reason: 'A loyalist counter-route that connects the legion war to the Siege.',
   },
@@ -450,11 +450,15 @@ const bookSeeds: BookSeed[] = [
   },
 ]
 
-export const books: Book[] = bookSeeds.map((book, index) => ({
-  ...book,
-  x: book.x ?? 70 + (index % 7) * 235,
-  y: book.y ?? 100 + Math.floor(index / 7) * 150,
-}))
+let overflowIndex = 0
+export const books: Book[] = bookSeeds.map((book) => {
+  const index = book.x === undefined || book.y === undefined ? overflowIndex++ : -1
+  return {
+    ...book,
+    x: book.x ?? 1210 + (index % 5) * 235,
+    y: book.y ?? 100 + Math.floor(index / 5) * 150,
+  }
+})
 
 const curatedConnections: Connection[] = [
   { from: 'horus-rising', to: 'false-gods', kind: 'sequel', explanation: 'The direct continuation of the opening campaign.' },
