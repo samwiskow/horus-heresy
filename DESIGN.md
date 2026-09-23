@@ -21,9 +21,14 @@ typography:
     letterSpacing: "-.025em"
   reading-title:
     fontFamily: "Libre Baskerville, Georgia, serif"
-    fontSize: "clamp(23px, 2.5vw, 34px)"
+    fontSize: "clamp(21px, 2vw, 27px)"
     fontWeight: 400
     lineHeight: 1.25
+    letterSpacing: "-.025em"
+  atlas-title:
+    fontFamily: "Libre Baskerville, Georgia, serif"
+    fontSize: "clamp(25px, 2.3vw, 32px)"
+    fontWeight: 400
     letterSpacing: "-.025em"
   notes-title:
     fontFamily: "Libre Baskerville, Georgia, serif"
@@ -34,6 +39,11 @@ typography:
   list-title:
     fontFamily: "Libre Baskerville, Georgia, serif"
     fontSize: "15px"
+    fontWeight: 400
+    lineHeight: 1.45
+  collection-title:
+    fontFamily: "Libre Baskerville, Georgia, serif"
+    fontSize: "17px"
     fontWeight: 400
     lineHeight: 1.45
   body:
@@ -84,7 +94,8 @@ components:
     padding: "8px"
   map-surface:
     backgroundColor: "{colors.sheet}"
-    height: "515px"
+    width: "100%"
+    height: "clamp(580px, 75vh, 900px)"
 ---
 
 # Design System: Pathfinder
@@ -137,10 +148,10 @@ The palette combines warm neutral surfaces with one muted red action colour. Gre
 Book titles and page titles use the serif. Navigation, metadata, descriptions, and actions use the sans-serif. The italic “Book notes” heading gives the notes column its annotation character.
 
 ### Hierarchy
-- **Display:** page titles; on mobile the Explore title uses a fixed size (29px).
+- **Display:** collection page titles; the smaller atlas title keeps the map close to the top of Explore.
 - **Reading title:** current and recommended books; mobile uses a fixed size (23px).
 - **Notes title:** the selected book in the notes panel.
-- **List title:** books in the linear list; mobile reduces this to (14px).
+- **List title:** books in the linear list. Full-width collection indexes use (17px) on desktop and (15px) on mobile.
 - **Body:** reading explanations and story notes. Reading explanations have a maximum measure (56ch).
 - **Control:** buttons and select inputs. Navigation and search use larger text (14px).
 - **Map labels:** compact sans-serif metadata (8–11px) with serif book titles. This density is specific to the graph, not a default for body text.
@@ -149,15 +160,15 @@ Book titles and page titles use the serif. Navigation, metadata, descriptions, a
 
 ## Layout
 
-The shell has a maximum width (1800px). Desktop content uses generous side margins. At (1100px), margins reduce to (28px), toolbars wrap, and the notes column narrows from (294px) to (260px).
+The shell has a maximum width (1800px). Desktop content uses generous side margins. Explore starts with a compact reading route, then gives the map the full content width and a height tied to the viewport. At (1100px), margins reduce to (28px) and toolbars wrap. Book notes open in a temporary side panel after selection, so the map and book index retain their full width.
 
-At (760px), navigation moves below the brand, content becomes one column, and notes move below the selected view. The mobile list and map toggle preserve access to the graph without making it the only way to browse. Long lists and maps scroll within their own bounded areas.
+At (760px), navigation moves below the brand and content becomes one column. The mobile list remains the initial Explore view; Explore full map opens a screen-height map with a clear return to the list. Book notes cover the screen after selection and can be closed to return to the map or list. The full-width Story arcs and My library indexes use two book columns on desktop and one on mobile.
 
 Content groups use rules and space rather than separate cards for each item. Lists align book number, title, state, and action in columns. Preserve room for long titles and wrapping actions.
 
 ## Elevation & Depth
 
-The current interface uses no box shadows or decorative glow. Paper and sheet tones, thin borders, and selected fills provide depth. The map key overlays the map area with a sheet background and a rule border. Book notes use a divider rather than a floating panel.
+Paper and sheet tones, thin borders, and selected fills provide most depth. A soft offset shadow separates the temporary book-notes panel and atlas overview from the content beneath them. The map key overlays the map area with a sheet background and a rule border.
 
 ## Shapes
 
@@ -185,11 +196,11 @@ Book rows use a bottom rule and a selected-paper fill when selected. Serif title
 
 ### Book Notes
 
-Notes use an italic serif heading and a larger serif book title. Reading actions precede expandable story notes. Spoiler level appears in the disclosure label. Connections remain labelled as direct continuations, prerequisites, parallel stories, or optional stories. The desktop panel is sticky and scrolls if it exceeds the viewport; mobile places it in normal document flow.
+Notes use an italic serif heading and a larger serif book title. Reading actions precede expandable story notes. Spoiler level appears in the disclosure label. Connections remain labelled as direct continuations, prerequisites, parallel stories, or optional stories. Notes open on selection in a temporary panel with a close action; the map or list keeps its place beneath it.
 
 ### Story Maps
 
-Maps use sheet surfaces, compact book plates, and red connection emphasis. Solid, bold, and dashed lines distinguish relationship types. Selected, current, finished, and recommended states use borders, fills, and symbols. The map legend explains these marks in plain language. The only explicit transition is the flow edge stroke change (180ms ease-out); reduced-motion preferences disable transitions.
+Maps use sheet surfaces, compact book plates, and red connection emphasis. Solid, bold, and dashed lines distinguish relationship types. Selected, current, finished, and recommended states use borders, fills, and symbols. Arc lanes and Reference flow include a small overview that shows all visible arcs, the current book, and the current map window. The Campaign map frames the focused book with room for onward connections. The map legend explains these marks in plain language. The only explicit transition is the flow edge stroke change (180ms ease-out); reduced-motion preferences disable transitions.
 
 ## Do's and Don'ts
 

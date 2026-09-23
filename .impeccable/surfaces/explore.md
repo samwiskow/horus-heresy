@@ -2,14 +2,15 @@
 
 ## Intent
 
-Help the reader choose a next book and understand its place in the branching story. The user approved equal emphasis on the reading recommendation and the story map, with a list and map toggle on mobile.
+Help the reader choose a next book and feel the scale of the branching story. The reading recommendation stays close to the map, while the map leads the Explore layout. A list and full-screen map toggle remain available on mobile.
 
 ## Implemented composition
 
-- The reading area leads with Reading now or Last finished, followed by Read next and a short explanation. Other routes appear when available on wide screens.
-- The story atlas follows with search, story arc, onward-route filtering, and a desktop view selector. Arc lanes are the initial map view.
-- Book notes sit beside the map on desktop and below the list or map on mobile.
-- At widths of 760px or less, the book list is the initial browsing view. Explore full map switches to the map; Show book list switches back.
+- A compact reading strip gives Reading now or Last finished, Read next, and a short explanation before the atlas.
+- The story atlas uses the full content width and most of the viewport height. Search, story arc, onward-route filtering, and a desktop view selector sit above it. Arc lanes are the initial map view.
+- A small overview shows the visible map window against the full set of arcs and marks the current book.
+- Book notes open on selection in a temporary side panel with a close action. The map and book indexes keep their full width beneath it.
+- At widths of 760px or less, the book list is the initial browsing view. Explore full map opens a screen-height map; Show book list returns to the list.
 - Story summaries remain behind a disclosure with the spoiler level. Selected books expose reading actions and labelled connections.
 
 ## Product truth
