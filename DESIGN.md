@@ -160,9 +160,9 @@ Book titles and page titles use the serif. Navigation, metadata, descriptions, a
 
 ## Layout
 
-The shell has a maximum width (1800px). Desktop content uses generous side margins. Explore starts with a compact reading route, then gives the map the full content width and a height tied to the viewport. At (1100px), margins reduce to (28px) and toolbars wrap. Book notes open in a temporary side panel after selection, so the map and book index retain their full width.
+The shell has a maximum width (1800px). Desktop content uses generous side margins. Explore starts with a compact reading route, then gives the map the full content width and a height tied to the viewport. At (1100px), margins reduce to (28px) and toolbars wrap. Book notes open in a temporary side panel from the Book notes action or a book index, so the map and book index retain their full width.
 
-At (760px), navigation moves below the brand and content becomes one column. The mobile list remains the initial Explore view; Explore full map opens a screen-height map with a clear return to the list. Book notes cover the screen after selection and can be closed to return to the map or list. The full-width Story arcs and My library indexes use two book columns on desktop and one on mobile.
+At (760px), navigation moves below the brand and content becomes one column. The mobile list remains the initial Explore view; Explore full map opens a screen-height map with a clear return to the list and a selected-book bar. Book notes cover the screen after the Book notes action or list selection and can be closed to return to the map or list. The full-width Story arcs and My library indexes use two book columns on desktop and one on mobile.
 
 Content groups use rules and space rather than separate cards for each item. Lists align book number, title, state, and action in columns. Preserve room for long titles and wrapping actions.
 
@@ -196,11 +196,11 @@ Book rows use a bottom rule and a selected-paper fill when selected. Serif title
 
 ### Book Notes
 
-Notes use an italic serif heading and a larger serif book title. Reading actions precede expandable story notes. Spoiler level appears in the disclosure label. Connections remain labelled as direct continuations, prerequisites, parallel stories, or optional stories. Notes open on selection in a temporary panel with a close action; the map or list keeps its place beneath it.
+Notes use an italic serif heading and a larger serif book title. Reading actions precede expandable story notes. Spoiler level appears in the disclosure label. Connections remain labelled as direct continuations, prerequisites, parallel stories, or optional stories. Map selection traces next paths, and an explicit Book notes action opens the temporary panel. Book indexes still open notes on selection. The map or list keeps its place beneath the panel.
 
 ### Story Maps
 
-Maps use sheet surfaces, compact book plates, and red connection emphasis. Solid, bold, and dashed lines distinguish relationship types. Selected, current, finished, and recommended states use borders, fills, and symbols. Arc lanes and Reference flow include a small overview that shows all visible arcs, the current book, and the current map window. The Campaign map first fits all visible books, with controls to fit again or focus the current book. A toggle highlights onward connections and lists their destinations. The map legend explains these marks in plain language. The only explicit transition is the flow edge stroke change (180ms ease-out); reduced-motion preferences disable transitions.
+Maps use sheet surfaces, compact book plates, and red connection emphasis. Solid, bold, and dashed lines distinguish relationship types. Selected, current, finished, and recommended states use borders, fills, and symbols. Arc lanes and Reference flow include a small overview that shows all visible arcs, the current book, and the current map window. The Campaign map first fits all visible books, with controls to fit again or focus the current book. A toggle highlights onward connections and lists their destinations. Books on the selected path keep solid plates and clear borders; other plates show lines that cross beneath them. The map legend explains these marks in plain language. The only explicit transition is the flow edge stroke change (180ms ease-out); reduced-motion preferences disable transitions.
 
 ## Do's and Don'ts
 

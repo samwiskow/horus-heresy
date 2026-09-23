@@ -9,7 +9,8 @@ Help the reader choose a next book and feel the scale of the branching story. Th
 - A compact reading strip gives Reading now or Last finished, Read next, and a short explanation before the atlas.
 - The story atlas uses the full content width and most of the viewport height. Search, story arc, onward-route filtering, onward-path highlighting, and a desktop view selector sit above it. Arc lanes are the initial map view.
 - A small overview shows the visible map window against the full set of arcs and marks the current book.
-- Book notes open on selection in a temporary side panel with a close action. The map and book indexes keep their full width beneath it.
+- Selecting a map book traces its next paths. An explicit Book notes action opens the temporary side panel. Book indexes still open notes on selection.
+- Books on the selected path keep solid plates and clear borders; other plates let crossing lines show through. The map and book indexes keep their full width beneath the notes panel.
 - At widths of 760px or less, the book list is the initial browsing view. Explore full map opens a screen-height map; Show book list returns to the list.
 - Story summaries remain behind a disclosure with the spoiler level. Selected books expose reading actions and labelled connections.
 
