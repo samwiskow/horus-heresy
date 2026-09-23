@@ -28,7 +28,7 @@ The reader explores a dense flowchart, searches for a book or arc, selects a boo
 
 ## Capabilities and Constraints
 
-- The campaign map is the core surface: zoom, pan, search, filter, inspect, and highlight a personal route.
+- The story atlas is the core exploration surface: scan the full set of arcs, move through the map, search, filter, inspect books, and highlight a personal route. Arc lanes are the default map view; Campaign map is an alternate view.
 - Recommendations are deterministic and explainable. They distinguish prerequisites, direct continuations, parallel arcs, and optional material.
 - The first data set is core novels plus a curated set of important supporting stories, not an attempt to encode every short story immediately.
 - Publication order, in-universe chronology, and recommended reading order are separate concepts.

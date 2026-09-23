@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-22T21:38:39.570458+00:00",
+  "generatedAt": "2026-09-23T10:05:27Z",
   "title": "Design System: Pathfinder",
   "extensions": {
     "colorMeta": {
@@ -46,6 +46,10 @@
         "displayName": "Reading title",
         "purpose": "Current and recommended books."
       },
+      "atlas-title": {
+        "displayName": "Atlas title",
+        "purpose": "Compact Explore heading above the map."
+      },
       "notes-title": {
         "displayName": "Notes title",
         "purpose": "Selected book in the notes panel."
@@ -53,6 +57,10 @@
       "list-title": {
         "displayName": "List title",
         "purpose": "Book names in the linear list."
+      },
+      "collection-title": {
+        "displayName": "Collection title",
+        "purpose": "Book names in the desktop collection index."
       },
       "body": {
         "displayName": "Reading text",
@@ -63,7 +71,18 @@
         "purpose": "Actions and select controls."
       }
     },
-    "shadows": [],
+    "shadows": [
+      {
+        "name": "book-notes",
+        "value": "-12px 0 30px rgba(48, 46, 41, .14)",
+        "purpose": "Separate temporary book notes from the map or index."
+      },
+      {
+        "name": "atlas-overview",
+        "value": "0 5px 18px rgba(48, 46, 41, .12)",
+        "purpose": "Keep the small map overview legible over story lanes."
+      }
+    ],
     "motion": [
       {
         "name": "flow-edge-stroke",
@@ -133,7 +152,7 @@
   ],
   "narrative": {
     "northStar": "Annotated edition",
-    "overview": "Pathfinder uses warm paper, charcoal text, serif book titles, and small red annotations. Readers can choose a next book while keeping the branching story visible. Rules and open space separate content; sans-serif controls remain clear. This direction replaces the former dark campaign-war-room style.",
+    "overview": "Pathfinder uses warm paper, charcoal text, serif book titles, and small red annotations. A compact reading route leads into a full-width story atlas with a small overview of its arcs. Book notes open when a reader selects a book, leaving the map and indexes room to breathe. Rules and open space separate content; sans-serif controls remain clear.",
     "keyCharacteristics": [
       "Warm off-white surfaces and charcoal text.",
       "Self-hosted serif book titles with sans-serif controls.",

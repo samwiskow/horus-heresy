@@ -199,10 +199,14 @@ function MapCanvas({
   const visibleIds = new Set(visibleBooks.map((book) => book.id))
   const visibleConnections = connections.filter((edge) => visibleIds.has(edge.from) && visibleIds.has(edge.to))
   const focusedBookIds = getFocusedBookIds(visibleConnections, selectedId)
+  const focusPan = (book: Book, scale: number) => ({
+    x: 230 + 470 * (book.x / MAP_WIDTH) - (book.x + NODE_WIDTH / 2) * scale,
+    y: 160 + 270 * (book.y / MAP_HEIGHT) - (book.y + NODE_HEIGHT / 2) * scale,
+  })
 
   useEffect(() => {
     const book = bookById[selectedId || currentId]
-    setPan({ x: 500 - (book.x + NODE_WIDTH / 2) * zoom, y: 270 - (book.y + NODE_HEIGHT / 2) * zoom })
+    setPan(focusPan(book, zoom))
   }, [focusRevision, currentId, zoom])
 
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
@@ -262,7 +266,7 @@ function MapCanvas({
         <span className="zoom-label">{Math.round(zoom * 100)}%</span>
         <IconButton label="Zoom in" onClick={() => setZoom((value) => Math.min(1.35, value + 0.08))}><Plus size={16} /></IconButton>
         <span className="control-rule" />
-        <IconButton label="Reset map position" onClick={() => { setZoom(1); setPan({ x: 500 - bookById[currentId].x - NODE_WIDTH / 2, y: 270 - bookById[currentId].y - NODE_HEIGHT / 2 }) }}><RotateCcw size={15} /></IconButton>
+        <IconButton label="Reset map position" onClick={() => { setZoom(1); setPan(focusPan(bookById[currentId], 1)) }}><RotateCcw size={15} /></IconButton>
       </div>
       <div className="map-hint"><span className="drag-dot" /> Drag the map to scan the route</div>
     </div>
@@ -381,6 +385,24 @@ function FlowMapCanvas({
   onSelect: (book: Book) => void
 }) {
   const { positions, width: flowWidth, height: flowHeight, rows } = buildFlowLayout(visibleBooks)
+  const shellRef = useRef<HTMLDivElement>(null)
+  const overviewWindowRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const shell = shellRef.current
+    const windowMark = overviewWindowRef.current
+    if (!shell || !windowMark) return
+    const update = () => {
+      windowMark.style.left = `${shell.scrollLeft / flowWidth * 100}%`
+      windowMark.style.top = `${shell.scrollTop / flowHeight * 100}%`
+      windowMark.style.width = `${Math.min(100, shell.clientWidth / flowWidth * 100)}%`
+      windowMark.style.height = `${Math.min(100, shell.clientHeight / flowHeight * 100)}%`
+    }
+    const observer = new ResizeObserver(update)
+    observer.observe(shell)
+    shell.addEventListener('scroll', update)
+    update()
+    return () => { observer.disconnect(); shell.removeEventListener('scroll', update) }
+  }, [flowWidth, flowHeight])
   const visibleIds = new Set(visibleBooks.map((book) => book.id))
   const visibleConnections = connections.filter((edge) => visibleIds.has(edge.from) && visibleIds.has(edge.to))
   const focusedBookIds = getFocusedBookIds(visibleConnections, selectedId)
@@ -443,7 +465,8 @@ function FlowMapCanvas({
     }] as const
   }))
   return (
-    <div className={`flow-canvas-shell flow-${mode}`}>
+    <div className="flow-map-layout">
+    <div className={`flow-canvas-shell flow-${mode}`} ref={shellRef}>
       <svg className="flow-canvas" style={{ width: `${flowWidth}px`, height: `${flowHeight}px` }} viewBox={`0 0 ${flowWidth} ${flowHeight}`} role="group" aria-label="Story connections">
         <defs>
           {Object.entries(arcMeta).map(([arc, meta]) => <g key={arc}>
@@ -490,6 +513,23 @@ function FlowMapCanvas({
         </g>
       </svg>
     </div>
+      <button className="atlas-overview" type="button" aria-label="Jump within the story atlas" onClick={(event) => {
+        const shell = shellRef.current
+        const chart = event.currentTarget.querySelector('.overview-chart')
+        if (!shell || !chart) return
+        const bounds = chart.getBoundingClientRect()
+        const x = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width))
+        const y = Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height))
+        shell.scrollTo({ left: x * flowWidth - shell.clientWidth / 2, top: y * flowHeight - shell.clientHeight / 2, behavior: 'smooth' })
+      }}>
+        <span className="overview-label">Whole atlas · {rows.length} arcs</span>
+        <span className="overview-chart" aria-hidden="true">
+          {rows.map((row) => <span key={row.id} className="overview-lane" style={{ top: `${row.y / flowHeight * 100}%`, backgroundColor: row.colour }} />)}
+          {positions[currentId] && <span className="overview-current" style={{ left: `${positions[currentId].x / flowWidth * 100}%`, top: `${positions[currentId].y / flowHeight * 100}%` }} />}
+          <span className="overview-window" ref={overviewWindowRef} />
+        </span>
+      </button>
+    </div>
   )
 }
 
@@ -503,12 +543,12 @@ function ReadingActions({ book, readIds, currentId, onRead, onCurrent }: BookAct
   </div>
 }
 
-function BookNotes({ book, onSelect, ...actions }: BookActions & { book: Book; onSelect: (book: Book) => void }) {
+function BookNotes({ book, onSelect, onClose, ...actions }: BookActions & { book: Book; onSelect: (book: Book) => void; onClose: () => void }) {
   const incoming = connections.filter((edge) => edge.to === book.id && isDirectionalConnection(edge.kind))
   const outgoing = connections.filter((edge) => edge.from === book.id)
   const labels: Record<Connection['kind'], string> = { sequel: 'Direct continuation', recommended: 'Suggested route', prerequisite: 'Read before', parallel: 'Parallel story', optional: 'Optional story' }
   return <aside id="book-notes" className="book-notes" tabIndex={-1} aria-label="Book notes">
-    <div className="notes-heading"><h2>Book notes</h2><BookOpen size={18} /></div>
+    <div className="notes-heading"><h2>Book notes</h2><IconButton label="Close book notes" onClick={onClose}><X size={18} /></IconButton></div>
     <div className="book-reference">{book.seriesNumber ? `Book ${String(book.seriesNumber).padStart(2, '0')}` : 'Supporting story'} <span>{book.kind}</span></div>
     <h3>{book.title}</h3>
     <p className="faction-name">{book.faction}</p>
@@ -536,22 +576,45 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect }
   const [mode, setMode] = useState<MapMode | 'list'>('lanes')
   const [routeOnly, setRouteOnly] = useState(false)
   const [fullMobileMap, setFullMobileMap] = useState(false)
+  const [notesOpen, setNotesOpen] = useState(false)
   const [focusRevision, setFocusRevision] = useState(0)
   const mapRef = useRef<HTMLDivElement>(null)
+  const mobileMapToggleRef = useRef<HTMLButtonElement>(null)
+  const mapCloseRef = useRef<HTMLButtonElement>(null)
+  const notesTrigger = useRef<HTMLElement | null>(null)
   const recommendations = getRecommendations(currentId, readIds)
   const recommended = recommendations[0]
   const routeIds = getReachableBookIds(currentId, readIds)
   const actions = { currentId, readIds, onRead, onCurrent }
   const visibleBooks = books.filter((book) => (!search || `${book.title} ${book.faction} ${arcMeta[book.arc].label}`.toLowerCase().includes(search.toLowerCase())) && (arcFilter === 'all' || book.arc === arcFilter) && (!routeOnly || routeIds.has(book.id) || book.id === currentId))
+  const openNotes = () => {
+    if (!(document.activeElement as HTMLElement)?.closest('#book-notes')) notesTrigger.current = document.activeElement as HTMLElement
+    setNotesOpen(true)
+    requestAnimationFrame(() => document.getElementById('book-notes')?.focus())
+  }
+  const closeNotes = () => { setNotesOpen(false); requestAnimationFrame(() => notesTrigger.current?.focus()) }
+  const closeFullMobileMap = () => { setFullMobileMap(false); requestAnimationFrame(() => mobileMapToggleRef.current?.focus()) }
   const selectAndShowNotes = (book: Book) => {
     onSelect(book)
-    if (window.matchMedia('(max-width: 760px)').matches) {
-      const notes = document.getElementById('book-notes')
-      notes?.scrollIntoView({ block: 'start' })
-      notes?.focus({ preventScroll: true })
-    }
+    openNotes()
   }
-  const revealBook = (book: Book) => { setSearch(''); setArcFilter('all'); setRouteOnly(false); onSelect(book); setFocusRevision((value) => value + 1) }
+  const revealBook = (book: Book, showNotes = true) => { setSearch(''); setArcFilter('all'); setRouteOnly(false); onSelect(book); setFocusRevision((value) => value + 1); if (showNotes) openNotes() }
+  useEffect(() => {
+    const onEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (notesOpen) closeNotes()
+      else if (fullMobileMap) closeFullMobileMap()
+    }
+    document.addEventListener('keydown', onEscape)
+    return () => document.removeEventListener('keydown', onEscape)
+  }, [notesOpen, fullMobileMap])
+  useEffect(() => {
+    if (!fullMobileMap || !window.matchMedia('(max-width: 760px)').matches) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    mapCloseRef.current?.focus()
+    return () => { document.body.style.overflow = previousOverflow }
+  }, [fullMobileMap])
   useEffect(() => {
     const shell = mapRef.current?.querySelector('.flow-canvas-shell')
     const node = mapRef.current?.querySelector(`[data-book-id="${selectedId}"]`)
@@ -564,7 +627,7 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect }
   return <>
     <section className="reading-desk" aria-label="Your reading route">
       <div className="current-reading"><div className="section-label"><BookOpen size={17} /><h2>{readIds.has(currentId) ? 'Last finished' : 'Reading now'}</h2></div><button className="book-heading" onClick={() => revealBook(bookById[currentId])}>{bookById[currentId].title}</button><p>{arcMeta[bookById[currentId].arc].label}</p><button className="text-action" onClick={() => onRead(currentId)}>{readIds.has(currentId) ? <RotateCcw size={15} /> : <Check size={15} />}{readIds.has(currentId) ? 'Mark unread' : 'Mark finished'}</button></div>
-      <div className="next-reading"><div className="section-label"><ArrowRight size={17} /><h2>Read next</h2></div>{recommended ? <><button className="book-heading" onClick={() => revealBook(recommended.book)}>{recommended.book.title}</button><p>{recommended.explanation}</p><div className="next-actions"><button className="primary-action" onClick={() => { onCurrent(recommended.book.id); revealBook(recommended.book) }}>Start reading <ArrowRight size={16} /></button><button className="text-action" onClick={() => { if (mode === 'list') setMode('lanes'); setFullMobileMap(true); revealBook(recommended.book); requestAnimationFrame(() => mapRef.current?.scrollIntoView({ block: 'center' })) }}>Show on map</button></div></> : <><h3>Every book finished.</h3><p>Explore the map to revisit a favourite.</p></>}</div>
+      <div className="next-reading"><div className="section-label"><ArrowRight size={17} /><h2>Read next</h2></div>{recommended ? <><button className="book-heading" onClick={() => revealBook(recommended.book)}>{recommended.book.title}</button><p>{recommended.explanation}</p><div className="next-actions"><button className="primary-action" onClick={() => { onCurrent(recommended.book.id); revealBook(recommended.book) }}>Start reading <ArrowRight size={16} /></button><button className="text-action" onClick={() => { if (mode === 'list') setMode('lanes'); setFullMobileMap(true); revealBook(recommended.book, false); requestAnimationFrame(() => mapRef.current?.scrollIntoView({ block: 'center' })) }}>Show on map</button></div></> : <><h3>Every book finished.</h3><p>Explore the map to revisit a favourite.</p></>}</div>
       {recommendations.length > 1 && <div className="other-routes"><h2>Other routes</h2>{recommendations.slice(1).map((item) => <button key={item.book.id} onClick={() => revealBook(item.book)}>{item.book.title}<ArrowRight size={15} /></button>)}</div>}
     </section>
     <div className="explore-heading"><div><h1>The story atlas<span>.</span></h1><p>Follow a story. Find where it connects.</p></div><button className="text-action" onClick={() => revealBook(bookById[currentId])}><Target size={16} />Return to my book</button></div>
@@ -576,30 +639,37 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect }
     </div>
     <div className="atlas-workspace"><section className="atlas-main" aria-label="Reading map"><div className="map-meta"><span>{visibleBooks.length} books · {arcFilter === 'all' ? `${new Set(visibleBooks.map((book) => book.arc)).size} story arcs` : arcMeta[arcFilter].label}</span><details className="map-key"><summary>How to read the map</summary><div><p><b>Arrow:</b> a reading direction.</p><p><b>Bold line:</b> direct continuation.</p><p><b>Dashed line:</b> related or optional; no required order.</p><p>Select a book to highlight its connections. Scroll inside the map to explore. Use Book list for a linear view.</p></div></details></div>
       {visibleBooks.length === 0 ? <div className="empty-state"><h2>No books found</h2><p>Try another title, or clear the filters.</p><button className="quiet-action" onClick={() => { setSearch(''); setArcFilter('all'); setRouteOnly(false) }}>Clear filters</button></div> : <>
-        <button className="mobile-map-toggle text-action" aria-expanded={fullMobileMap} onClick={() => { if (mode === 'list') setMode('lanes'); setFullMobileMap(!fullMobileMap) }}>{fullMobileMap ? <List size={17} /> : <Map size={17} />}{fullMobileMap ? 'Show book list' : 'Explore full map'}</button>
-        {mode !== 'list' && <div ref={mapRef} className={`atlas-map ${fullMobileMap ? 'mobile-expanded' : ''}`}>{mode === 'tactical' ? <MapCanvas focusRevision={focusRevision} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} routeIds={routeIds} recommendedIds={new Set(recommendations.map((item) => item.book.id))} onSelect={selectAndShowNotes} /> : <FlowMapCanvas mode={mode} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} recommendedIds={new Set(recommendations.map((item) => item.book.id))} onSelect={selectAndShowNotes} />}</div>}
+        <button ref={mobileMapToggleRef} className="mobile-map-toggle text-action" aria-expanded={fullMobileMap} onClick={() => { if (mode === 'list') setMode('lanes'); setFullMobileMap(!fullMobileMap) }}>{fullMobileMap ? <List size={17} /> : <Map size={17} />}{fullMobileMap ? 'Show book list' : 'Explore full map'}</button>
+        {mode !== 'list' && <div ref={mapRef} className={`atlas-map ${fullMobileMap ? 'mobile-expanded' : ''}`}><button ref={mapCloseRef} className="map-fullscreen-close quiet-action" onClick={closeFullMobileMap}><List size={17} />Show book list</button>{mode === 'tactical' ? <MapCanvas focusRevision={focusRevision} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} routeIds={routeIds} recommendedIds={new Set(recommendations.map((item) => item.book.id))} onSelect={selectAndShowNotes} /> : <FlowMapCanvas mode={mode} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} recommendedIds={new Set(recommendations.map((item) => item.book.id))} onSelect={selectAndShowNotes} />}</div>}
         <div className={`${mode === 'list' ? 'list-view' : 'mobile-book-list'} ${fullMobileMap ? 'mobile-hidden' : ''}`}><BookList items={visibleBooks} selectedId={selectedId} onSelect={selectAndShowNotes} {...actions} /></div>
       </>}
       <div className="map-caption"><span><span className="status-sample selected" />Selected</span><span><BookOpen size={13} />Reading</span><span><Check size={13} />Finished</span><span className="caption-note">Select a book to read its notes.</span></div>
-    </section><BookNotes book={bookById[selectedId]} onSelect={revealBook} {...actions} /></div>
+    </section>{notesOpen && <BookNotes book={bookById[selectedId]} onSelect={revealBook} onClose={closeNotes} {...actions} />}</div>
   </>
 }
 
 function Collection({ view, selectedId, onSelect, ...actions }: BookActions & { view: 'atlas' | 'library'; selectedId: string; onSelect: (book: Book) => void }) {
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
+  const [notesOpen, setNotesOpen] = useState(false)
+  const notesTrigger = useRef<HTMLElement | null>(null)
   const selectAndShowNotes = (book: Book) => {
     onSelect(book)
-    if (window.matchMedia('(max-width: 760px)').matches) {
-      const notes = document.getElementById('book-notes')
-      notes?.scrollIntoView({ block: 'start' })
-      notes?.focus({ preventScroll: true })
-    }
+    if (!(document.activeElement as HTMLElement)?.closest('#book-notes')) notesTrigger.current = document.activeElement as HTMLElement
+    setNotesOpen(true)
+    requestAnimationFrame(() => document.getElementById('book-notes')?.focus())
   }
+  const closeNotes = () => { setNotesOpen(false); requestAnimationFrame(() => notesTrigger.current?.focus()) }
+  useEffect(() => {
+    if (!notesOpen) return
+    const onEscape = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') closeNotes() }
+    document.addEventListener('keydown', onEscape)
+    return () => document.removeEventListener('keydown', onEscape)
+  }, [notesOpen])
   const items = books.filter((book) => (!query || `${book.title} ${book.faction}`.toLowerCase().includes(query.toLowerCase())) && (filter === 'all' || actions.readIds.has(book.id) === (filter === 'finished')))
   return <><div className="collection-heading"><h1>{view === 'atlas' ? 'Stories within the story.' : 'Your reading library.'}</h1><p>{view === 'atlas' ? 'Browse the nine story arcs. Each book has one primary grouping in this guide.' : `${actions.readIds.size} of ${books.length} books finished. Your progress stays in this browser.`}</p></div>
     <div className="atlas-toolbar"><label className="search-field"><Search size={17} /><input aria-label="Search collection" placeholder="Find a book or legion" value={query} onChange={(event) => setQuery(event.target.value)} /></label><label className="select-field"><span>Status</span><select aria-label="Reading status" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">All books</option><option value="finished">Finished</option><option value="unread">Unread</option></select></label></div>
-    <div className="atlas-workspace"><section className="collection-books">{items.length === 0 ? <div className="empty-state"><h2>No books here yet</h2><p>Change the status filter or search to see more books.</p><button className="quiet-action" onClick={() => { setQuery(''); setFilter('all') }}>Show all books</button></div> : view === 'library' ? <BookList items={items} selectedId={selectedId} onSelect={selectAndShowNotes} {...actions} /> : Object.entries(arcMeta).map(([id, meta]) => { const arcBooks = items.filter((book) => book.arc === id); return arcBooks.length > 0 && <section className="arc-section" key={id}><div className="arc-heading"><h2>{meta.label}</h2><span>{arcBooks.filter((book) => actions.readIds.has(book.id)).length}/{arcBooks.length} finished</span></div><BookList items={arcBooks} selectedId={selectedId} onSelect={selectAndShowNotes} {...actions} /></section> })}</section><BookNotes book={bookById[selectedId]} onSelect={selectAndShowNotes} {...actions} /></div>
+    <div className="atlas-workspace"><section className="collection-books">{items.length === 0 ? <div className="empty-state"><h2>No books here yet</h2><p>Change the status filter or search to see more books.</p><button className="quiet-action" onClick={() => { setQuery(''); setFilter('all') }}>Show all books</button></div> : view === 'library' ? <BookList items={items} selectedId={selectedId} onSelect={selectAndShowNotes} {...actions} /> : Object.entries(arcMeta).map(([id, meta]) => { const arcBooks = items.filter((book) => book.arc === id); return arcBooks.length > 0 && <section className="arc-section" key={id}><div className="arc-heading"><h2>{meta.label}</h2><span>{arcBooks.filter((book) => actions.readIds.has(book.id)).length}/{arcBooks.length} finished</span></div><BookList items={arcBooks} selectedId={selectedId} onSelect={selectAndShowNotes} {...actions} /></section> })}</section>{notesOpen && <BookNotes book={bookById[selectedId]} onSelect={selectAndShowNotes} onClose={closeNotes} {...actions} />}</div>
   </>
 }
 
