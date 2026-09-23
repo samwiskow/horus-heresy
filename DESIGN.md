@@ -200,7 +200,7 @@ Notes use an italic serif heading and a larger serif book title. Reading actions
 
 ### Story Maps
 
-Maps use sheet surfaces, compact book plates, and red connection emphasis. Solid, bold, and dashed lines distinguish relationship types. Selected, current, finished, and recommended states use borders, fills, and symbols. Arc lanes and Reference flow include a small overview that shows all visible arcs, the current book, and the current map window. The Campaign map frames the focused book with room for onward connections. The map legend explains these marks in plain language. The only explicit transition is the flow edge stroke change (180ms ease-out); reduced-motion preferences disable transitions.
+Maps use sheet surfaces, compact book plates, and red connection emphasis. Solid, bold, and dashed lines distinguish relationship types. Selected, current, finished, and recommended states use borders, fills, and symbols. Arc lanes and Reference flow include a small overview that shows all visible arcs, the current book, and the current map window. The Campaign map first fits all visible books, with controls to fit again or focus the current book. A toggle highlights onward connections and lists their destinations. The map legend explains these marks in plain language. The only explicit transition is the flow edge stroke change (180ms ease-out); reduced-motion preferences disable transitions.
 
 ## Do's and Don'ts
 

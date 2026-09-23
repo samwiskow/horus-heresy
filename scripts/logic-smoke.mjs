@@ -57,6 +57,17 @@ run('keeps the current book graph structurally valid', () => {
   assert.equal(books.every((book) => connections.some((edge) => edge.from === book.id || edge.to === book.id)), true)
 })
 
+run('keeps campaign map book plates separate', () => {
+  for (let index = 0; index < books.length; index++) {
+    for (const other of books.slice(index + 1)) {
+      const book = books[index]
+      const overlaps = book.x < other.x + 180 && book.x + 180 > other.x
+        && book.y < other.y + 74 && book.y + 74 > other.y
+      assert.equal(overlaps, false, `${book.id} overlaps ${other.id}`)
+    }
+  }
+})
+
 run('keeps direct continuations distinct from suggested bridges', () => {
   const edgeKind = (from, to) => connections.find((edge) => edge.from === from && edge.to === to)?.kind
 
