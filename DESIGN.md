@@ -137,7 +137,9 @@ The palette combines warm neutral surfaces with one muted red action colour. Gre
 - **Read Paper** (`read-surface`): finished map nodes.
 - **Disabled Paper** (`disabled`): unavailable actions.
 
-**The Annotation Rule.** Use red to identify an action, location, or connection. Do not fill large content surfaces with it. Arc colours remain small data-specific signals in the maps; they are not a second interface palette.
+**The Annotation Rule.** Use red to identify an action, location, or connection. Do not fill large content surfaces with it.
+
+**The Reference Colour Rule.** Copy the reference book plate's fill and outline into a small square on map plates and book lists. Keep faction names visible and reading state explicit. Books absent from the reference have no mark. These colours are source data, not interface tokens or legion and story arc memberships.
 
 ## Typography
 
