@@ -1,88 +1,17 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { ArrowUpRight, BookOpen, Check, Download, Map, Minus, Plus, RotateCcw, Search, Target, X, ArrowRight, List } from 'lucide-react'
-import { arcMeta, bookById, books, type ArcId, type Book, type Connection } from './data'
+import { bookById, books, type Book, type Connection } from './data'
 import { parseProgress, toggleFinished, type Progress } from './progress'
 import { getConnections, readingOptions, referenceNodeByBookId, sagaBookIds, type ReadingOption } from './reading-options'
 import { getReachableBookIds, getNextSteps } from './logic'
+import { edgePath, NODE_WIDTH, NODE_HEIGHT } from './map-layout'
 
-type View = 'map' | 'atlas' | 'library'
-type MapMode = 'reference' | 'lanes' | 'tactical'
+type View = 'map' | 'library'
+type MapMode = 'map' | 'list'
 
 const STORAGE_KEY = 'heresy-pathfinder-progress'
-const NODE_WIDTH = 180
-const NODE_HEIGHT = 74
 const MAP_WIDTH = 2400
 const MAP_HEIGHT = 1300
-const FLOW_NODE_WIDTH = 194
-const FLOW_NODE_HEIGHT = 90
-const FLOW_EDGE_GAP = 8
-const FLOW_EDGE_FAN = 18
-const FLOW_EDGE_BAND_GAP = 24
-const FLOW_CROSS_CHANNEL_GAP = 10
-const FLOW_CROSS_TRACK_GAP = 22
-const FLOW_EDGE_CURVE_THRESHOLD = 96
-
-type FlowPosition = { x: number; y: number }
-const FLOW_LEFT = 220
-const FLOW_X_STEP = 240
-const FLOW_TOP = 100
-const FLOW_ROW_GAP = 155
-
-type FlowRow = { id: ArcId; label: string; y: number; colour: string }
-type FlowLayout = { positions: Record<string, FlowPosition>; width: number; height: number; rows: FlowRow[] }
-
-const flowRows: FlowRow[] = Object.entries(arcMeta).map(([id, meta], index) => ({
-  id: id as ArcId,
-  label: meta.label.toUpperCase(),
-  y: FLOW_TOP + index * FLOW_ROW_GAP,
-  colour: meta.colour,
-}))
-
-function buildFlowLayout(visibleBooks: Book[], connections: Connection[]): FlowLayout {
-  const positions: Record<string, FlowPosition> = {}
-  let maxBooksInRow = 0
-  const visibleIds = visibleBooks ? new Set(visibleBooks.map((book) => book.id)) : null
-  const rows = (visibleIds ? flowRows.filter((row) => books.some((book) => book.arc === row.id && visibleIds.has(book.id))) : flowRows).map((row, index) => ({
-    ...row,
-    y: FLOW_TOP + index * FLOW_ROW_GAP,
-  }))
-  rows.forEach((row) => {
-    const arcBooks = orderFlowBooks(visibleBooks.filter((book) => book.arc === row.id), connections)
-    maxBooksInRow = Math.max(maxBooksInRow, arcBooks.length)
-    arcBooks.forEach((book, index) => {
-      positions[book.id] = { x: FLOW_LEFT + index * FLOW_X_STEP, y: row.y - FLOW_NODE_HEIGHT / 2 }
-    })
-  })
-  return {
-    positions,
-    width: Math.max(1550, FLOW_LEFT + maxBooksInRow * FLOW_X_STEP + 40),
-    height: (rows.at(-1)?.y ?? FLOW_TOP) + FLOW_NODE_HEIGHT + 42,
-    rows,
-  }
-}
-
-function isPrimaryConnection(kind: Connection['kind']) {
-  return kind === 'sequence'
-}
-
-function flowEdgeBandOffset(kind: Connection['kind']) {
-  return isPrimaryConnection(kind) ? 0 : -FLOW_EDGE_BAND_GAP
-}
-
-function orderFlowBooks(arcBooks: Book[], connections: Connection[]) {
-  const ordered = [...arcBooks]
-  const allowedIds = new Set(ordered.map((book) => book.id))
-  const directionalEdges = connections.filter((edge) => allowedIds.has(edge.from) && allowedIds.has(edge.to))
-  directionalEdges.forEach((edge) => {
-    const fromIndex = ordered.findIndex((book) => book.id === edge.from)
-    const toIndex = ordered.findIndex((book) => book.id === edge.to)
-    if (fromIndex > toIndex) {
-      const [book] = ordered.splice(fromIndex, 1)
-      ordered.splice(toIndex, 0, book)
-    }
-  })
-  return ordered
-}
 
 function loadProgress(): Progress {
   try {
@@ -97,27 +26,6 @@ function splitTitle(title: string) {
   const words = title.split(' ')
   const midpoint = Math.ceil(words.length / 2)
   return [words.slice(0, midpoint).join(' '), words.slice(midpoint).join(' ')]
-}
-
-function edgePath(from: Book, to: Book) {
-  const startX = from.x + NODE_WIDTH / 2
-  const startY = from.y + NODE_HEIGHT / 2
-  const endX = to.x + NODE_WIDTH / 2
-  const endY = to.y + NODE_HEIGHT / 2
-  const dx = endX - startX
-  const dy = endY - startY
-  if (Math.abs(dx) > Math.abs(dy)) {
-    const direction = Math.sign(dx)
-    const fromEdge = startX + direction * (NODE_WIDTH / 2 + 3)
-    const toEdge = endX - direction * (NODE_WIDTH / 2 + 9)
-    const bendX = (fromEdge + toEdge) / 2
-    return `M ${fromEdge} ${startY} C ${bendX} ${startY}, ${bendX} ${endY}, ${toEdge} ${endY}`
-  }
-  const direction = Math.sign(dy)
-  const fromEdge = startY + direction * (NODE_HEIGHT / 2 + 3)
-  const toEdge = endY - direction * (NODE_HEIGHT / 2 + 9)
-  const bendY = (fromEdge + toEdge) / 2
-  return `M ${startX} ${fromEdge} C ${startX} ${bendY}, ${endX} ${bendY}, ${endX} ${toEdge}`
 }
 
 function getFocusedBookIds(edges: Connection[], focusId: string | null) {
@@ -154,7 +62,6 @@ function BookNode({ book, selected, dimmed, readIds, currentId, recommended, onS
   return (
     <g
       className={`map-node ${status} ${selected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}`}
-      style={{ '--node-accent': arcMeta[book.arc].colour } as CSSProperties}
       transform={`translate(${book.x} ${book.y})`}
       role="button"
       tabIndex={0}
@@ -174,13 +81,13 @@ function BookNode({ book, selected, dimmed, readIds, currentId, recommended, onS
   )
 }
 
-function fitCampaign(visibleBooks: Book[]) {
+function fitCampaign(visibleBooks: Book[], size: { width: number; height: number }) {
   const left = Math.min(...visibleBooks.map((book) => book.x))
   const top = Math.min(...visibleBooks.map((book) => book.y))
   const right = Math.max(...visibleBooks.map((book) => book.x + NODE_WIDTH))
   const bottom = Math.max(...visibleBooks.map((book) => book.y + NODE_HEIGHT))
-  const zoom = Math.min(1, 920 / (right - left), 520 / (bottom - top))
-  return { zoom, pan: { x: 500 - (left + right) * zoom / 2, y: 300 - (top + bottom) * zoom / 2 } }
+  const zoom = Math.min(1, (size.width - 80) / (right - left), (size.height - 80) / (bottom - top))
+  return { zoom, pan: { x: size.width / 2 - (left + right) * zoom / 2, y: size.height / 2 - (top + bottom) * zoom / 2 } }
 }
 
 function MapCanvas({
@@ -196,7 +103,9 @@ function MapCanvas({
   connections: Connection[]
   onSelect: (book: Book) => void
 }) {
-  const [view, setView] = useState(() => fitCampaign(visibleBooks))
+  const shellRef = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState({ width: 1000, height: 600 })
+  const [view, setView] = useState(() => fitCampaign(visibleBooks, size))
   const { zoom, pan } = view
   const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
   const visibleKey = visibleBooks.map((book) => book.id).join('|')
@@ -205,24 +114,32 @@ function MapCanvas({
   const focusId = highlightPaths ? selectedId : null
   const focusedBookIds = getFocusedBookIds(visibleConnections, focusId)
   const focusPan = (book: Book, scale: number) => ({
-    x: 500 - (book.x + NODE_WIDTH / 2) * scale,
-    y: 300 - (book.y + NODE_HEIGHT / 2) * scale,
+    x: size.width / 2 - (book.x + NODE_WIDTH / 2) * scale,
+    y: size.height / 2 - (book.y + NODE_HEIGHT / 2) * scale,
   })
 
   useEffect(() => {
-    setView(fitCampaign(visibleBooks))
-  }, [visibleKey])
+    const shell = shellRef.current!
+    const update = () => { if (shell.clientWidth && shell.clientHeight) setSize({ width: shell.clientWidth, height: shell.clientHeight }) }
+    const observer = new ResizeObserver(update)
+    observer.observe(shell)
+    update()
+    return () => observer.disconnect()
+  }, [])
+  useEffect(() => {
+    setView(fitCampaign(visibleBooks, size))
+  }, [visibleKey, size.width, size.height])
   useEffect(() => {
     if (focusRevision === 0) return
     const book = bookById[selectedId || currentId]
     setView({ zoom: 0.9, pan: focusPan(book, 0.9) })
-  }, [focusRevision])
+  }, [focusRevision, size.width, size.height])
 
   const zoomBy = (step: number) => {
     setView(({ zoom, pan }) => {
       const nextZoom = Math.max(0.18, Math.min(1.5, zoom + step))
       const ratio = nextZoom / zoom
-      return { zoom: nextZoom, pan: { x: 500 - (500 - pan.x) * ratio, y: 300 - (300 - pan.y) * ratio } }
+      return { zoom: nextZoom, pan: { x: size.width / 2 - (size.width / 2 - pan.x) * ratio, y: size.height / 2 - (size.height / 2 - pan.y) * ratio } }
     })
   }
 
@@ -235,17 +152,17 @@ function MapCanvas({
     const start = drag.current
     if (!start) return
     const bounds = event.currentTarget.getBoundingClientRect()
-    const scale = Math.max(1000 / bounds.width, 600 / bounds.height)
+    const scale = Math.max(size.width / bounds.width, size.height / bounds.height)
     setView((current) => ({ ...current, pan: { x: start.panX + (event.clientX - start.x) * scale, y: start.panY + (event.clientY - start.y) * scale } }))
   }
   const stopDrag = () => { drag.current = null }
 
   return (
-    <div className={`map-canvas-shell ${highlightPaths ? 'paths-highlighted' : ''}`}>
+    <div className={`map-canvas-shell ${highlightPaths ? 'paths-highlighted' : ''}`} ref={shellRef}>
       <svg
         className="map-canvas"
-        viewBox="0 0 1000 600"
-        role="group" aria-label="Campaign connections"
+        viewBox={`0 0 ${size.width} ${size.height}`}
+        role="group" aria-label="Source connections"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={stopDrag}
@@ -266,7 +183,7 @@ function MapCanvas({
         <rect width={MAP_WIDTH} height={MAP_HEIGHT} fill="var(--sheet)" />
         <rect width={MAP_WIDTH} height={MAP_HEIGHT} fill="url(#map-grid)" />
         <g transform={`translate(${pan.x} ${pan.y}) scale(${zoom})`}>
-          <text className="map-axis-label" x="70" y="45">THE CAMPAIGN MAP / SELECT A NODE TO TRACE PATHS</text>
+          <text className="map-axis-label" x="70" y="45">READING CONNECTIONS / SELECT A BOOK TO TRACE PATHS</text>
           <line className="map-axis" x1="70" y1="62" x2="1170" y2="62" />
           {[...visibleConnections].sort((a, b) => Number(a.from === focusId) - Number(b.from === focusId)).map((edge) => {
             const from = bookById[edge.from]
@@ -283,277 +200,13 @@ function MapCanvas({
         <span className="zoom-label">{Math.round(zoom * 100)}%</span>
         <IconButton label="Zoom in" onClick={() => zoomBy(0.1)}><Plus size={16} /></IconButton>
         <span className="control-rule" />
-        <button className="map-text-control" onClick={() => setView(fitCampaign(visibleBooks))}>Fit all</button>
+        <button className="map-text-control" onClick={() => setView(fitCampaign(visibleBooks, size))}>Fit all</button>
         <IconButton label="Focus my book" onClick={() => setView({ zoom: 0.9, pan: focusPan(bookById[currentId], 0.9) })}><Target size={15} /></IconButton>
       </div>
       <div className="map-hint"><span className="drag-dot" /> Drag the map to scan the route</div>
     </div>
   )
 }
-
-function centredOffset(index: number, count: number, spacing: number) {
-  return (index - (count - 1) / 2) * spacing
-}
-
-function flowRowIndex(position: FlowPosition) {
-  return Math.round((position.y + FLOW_NODE_HEIGHT / 2 - FLOW_TOP) / FLOW_ROW_GAP)
-}
-
-function flowCorridorKey(from: FlowPosition, to: FlowPosition) {
-  return String(Math.floor((flowRowIndex(from) + flowRowIndex(to)) / 2))
-}
-
-function flowLanePairKey(from: FlowPosition, to: FlowPosition) {
-  return `${flowRowIndex(from)}:${flowRowIndex(to)}`
-}
-
-function flowEdgeMarkerId(mode: Exclude<MapMode, 'tactical'>, arc: ArcId, primary: boolean) {
-  return `flow-arrow-${primary ? 'primary-' : ''}${mode}-${arc}`
-}
-
-function flowEdgeMarkerColour(colour: string) {
-  return `color-mix(in srgb, ${colour} 40%, #292823)`
-}
-
-type FlowEdgeRoute = {
-  sourceOffset: number
-  targetOffset: number
-  channelOffset: number
-}
-
-function flowEdgePath(from: FlowPosition, to: FlowPosition, route: FlowEdgeRoute) {
-  if (from.y !== to.y) {
-    const movesDown = to.y > from.y
-    const startX = from.x + FLOW_NODE_WIDTH / 2 + route.sourceOffset
-    const endX = to.x + FLOW_NODE_WIDTH / 2 + route.targetOffset
-    const startY = movesDown ? from.y + FLOW_NODE_HEIGHT + FLOW_EDGE_GAP : from.y - FLOW_EDGE_GAP
-    const endY = movesDown ? to.y - FLOW_EDGE_GAP : to.y + FLOW_NODE_HEIGHT + FLOW_EDGE_GAP
-    const corridorRow = Number(flowCorridorKey(from, to))
-    const channelY = FLOW_TOP + corridorRow * FLOW_ROW_GAP + FLOW_ROW_GAP / 2 + route.channelOffset
-    return `M ${startX} ${startY} V ${channelY} H ${endX} V ${endY}`
-  }
-
-  const movesRight = to.x >= from.x
-  const direction = movesRight ? 1 : -1
-  const startX = movesRight ? from.x + FLOW_NODE_WIDTH + FLOW_EDGE_GAP : from.x - FLOW_EDGE_GAP
-  const endX = movesRight ? to.x - FLOW_EDGE_GAP : to.x + FLOW_NODE_WIDTH + FLOW_EDGE_GAP
-  const startY = from.y + FLOW_NODE_HEIGHT / 2 + route.sourceOffset
-  const endY = to.y + FLOW_NODE_HEIGHT / 2 + route.targetOffset
-
-  if (Math.abs(endX - startX) <= FLOW_EDGE_CURVE_THRESHOLD && startY === endY) {
-    return `M ${startX} ${startY} H ${endX}`
-  }
-  const offset = (route.sourceOffset + route.targetOffset) / 2
-  return `M ${startX} ${startY} C ${startX + direction * 42} ${startY + offset}, ${endX - direction * 42} ${endY + offset}, ${endX} ${endY}`
-}
-
-function FlowBookNode({ book, position, mode, selected, dimmed, readIds, currentId, recommended, onSelect }: {
-  book: Book
-  position: FlowPosition
-  mode: Exclude<MapMode, 'tactical'>
-  selected: boolean
-  dimmed: boolean
-  readIds: Set<string>
-  currentId: string
-  recommended: boolean
-  onSelect: (book: Book) => void
-}) {
-  const titleLines = splitTitle(book.shortTitle).slice(0, 2)
-  const status = readIds.has(book.id) ? 'read' : currentId === book.id ? 'current' : recommended ? 'recommended' : ''
-  const onKeyDown = (event: KeyboardEvent<SVGGElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      onSelect(book)
-    }
-  }
-  return (
-    <g
-      data-book-id={book.id}
-      className={`flow-node ${mode} arc-${book.arc} ${status} ${selected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}`}
-      style={{ '--flow-accent': book.accent } as CSSProperties}
-      transform={`translate(${position.x} ${position.y})`}
-      role="button"
-      tabIndex={0}
-      aria-label={`${book.title}, ${readIds.has(book.id) ? 'read' : currentId === book.id ? 'current book' : 'unread'}`}
-      onClick={() => onSelect(book)}
-      onKeyDown={onKeyDown}
-    >
-      {selected && <rect className="flow-node-focus-ring" x="-7" y="-7" width={FLOW_NODE_WIDTH + 14} height={FLOW_NODE_HEIGHT + 14} rx={mode === 'reference' ? 8 : 12} />}
-      <rect className="flow-node-plate" width={FLOW_NODE_WIDTH} height={FLOW_NODE_HEIGHT} rx={mode === 'reference' ? 5 : 9} />
-      <rect className="flow-node-accent" width="4" height={FLOW_NODE_HEIGHT} />
-      <text className="flow-node-faction" x="14" y="17">{book.faction.toUpperCase()}</text>
-      {titleLines.map((line, index) => <text className="flow-node-title" key={line} x="14" y={43 + index * 18}>{line}</text>)}
-      <text className="flow-node-meta" x="14" y="79">{book.kind} {book.seriesNumber ? `· ${String(book.seriesNumber).padStart(2, '0')}` : ''}</text>
-      {readIds.has(book.id) && <path className="flow-status read" d={`M ${FLOW_NODE_WIDTH - 22} 17 l 3 3 6 -7`} />}
-      {currentId === book.id && <circle className="flow-status current" cx={FLOW_NODE_WIDTH - 16} cy="17" r="4" />}
-      {recommended && !readIds.has(book.id) && currentId !== book.id && <circle className="flow-status recommended" cx={FLOW_NODE_WIDTH - 16} cy="17" r="4" />}
-    </g>
-  )
-}
-
-function FlowMapCanvas({
-  mode, selectedId, currentId, readIds, visibleBooks, highlightPaths, recommendedIds, onSelect, connections,
-}: {
-  mode: Exclude<MapMode, 'tactical'>
-  selectedId: string | null
-  currentId: string
-  readIds: Set<string>
-  visibleBooks: Book[]
-  highlightPaths: boolean
-  recommendedIds: Set<string>
-  connections: Connection[]
-  onSelect: (book: Book) => void
-}) {
-  const { positions, width: flowWidth, height: flowHeight, rows } = buildFlowLayout(visibleBooks, connections)
-  const shellRef = useRef<HTMLDivElement>(null)
-  const overviewWindowRef = useRef<HTMLSpanElement>(null)
-  useEffect(() => {
-    const shell = shellRef.current
-    const windowMark = overviewWindowRef.current
-    if (!shell || !windowMark) return
-    const update = () => {
-      windowMark.style.left = `${shell.scrollLeft / flowWidth * 100}%`
-      windowMark.style.top = `${shell.scrollTop / flowHeight * 100}%`
-      windowMark.style.width = `${Math.min(100, shell.clientWidth / flowWidth * 100)}%`
-      windowMark.style.height = `${Math.min(100, shell.clientHeight / flowHeight * 100)}%`
-    }
-    const observer = new ResizeObserver(update)
-    observer.observe(shell)
-    shell.addEventListener('scroll', update)
-    update()
-    return () => { observer.disconnect(); shell.removeEventListener('scroll', update) }
-  }, [flowWidth, flowHeight])
-  const visibleIds = new Set(visibleBooks.map((book) => book.id))
-  const visibleConnections = connections.filter((edge) => visibleIds.has(edge.from) && visibleIds.has(edge.to))
-  const focusId = highlightPaths ? selectedId : null
-  const focusedBookIds = getFocusedBookIds(visibleConnections, focusId)
-  const sameRowOutgoing = new globalThis.Map<string, string[]>()
-  const sameRowIncoming = new globalThis.Map<string, string[]>()
-  const crossLaneOutgoing = new globalThis.Map<string, string[]>()
-  const crossLaneIncoming = new globalThis.Map<string, string[]>()
-  const crossLaneChannels = new globalThis.Map<string, string[]>()
-  const crossLaneTracks = new globalThis.Map<string, string[]>()
-  visibleConnections.forEach((edge) => {
-    const from = positions[edge.from]
-    const to = positions[edge.to]
-    const sameRow = from?.y === to?.y
-    const outgoing = sameRow ? sameRowOutgoing : crossLaneOutgoing
-    const incoming = sameRow ? sameRowIncoming : crossLaneIncoming
-    outgoing.set(edge.from, [...(outgoing.get(edge.from) || []), edge.to])
-    incoming.set(edge.to, [...(incoming.get(edge.to) || []), edge.from])
-    if (!sameRow && from && to) {
-      const corridorKey = flowCorridorKey(from, to)
-      const lanePairKey = flowLanePairKey(from, to)
-      const edgeKey = `${edge.from}:${edge.to}`
-      crossLaneChannels.set(lanePairKey, [...(crossLaneChannels.get(lanePairKey) || []), edgeKey])
-      const tracks = crossLaneTracks.get(corridorKey) || []
-      if (!tracks.includes(lanePairKey)) crossLaneTracks.set(corridorKey, [...tracks, lanePairKey])
-    }
-  })
-  const edgeRoutes = new globalThis.Map<string, FlowEdgeRoute>(visibleConnections.map((edge) => {
-    const sameRow = positions[edge.from]?.y === positions[edge.to]?.y
-    const outgoing = sameRow ? sameRowOutgoing : crossLaneOutgoing
-    const incoming = sameRow ? sameRowIncoming : crossLaneIncoming
-    const sourceTargets = outgoing.get(edge.from) || []
-    const targetSources = incoming.get(edge.to) || []
-    const sourceFanOffset = centredOffset(sourceTargets.indexOf(edge.to), sourceTargets.length, FLOW_EDGE_FAN)
-    const targetFanOffset = centredOffset(targetSources.indexOf(edge.from), targetSources.length, FLOW_EDGE_FAN)
-    const bandOffset = flowEdgeBandOffset(edge.kind)
-    const sourceOffset = sameRow
-      ? isPrimaryConnection(edge.kind) ? 0 : bandOffset + sourceFanOffset
-      : sourceFanOffset
-    const targetOffset = sameRow
-      ? isPrimaryConnection(edge.kind) ? 0 : bandOffset + targetFanOffset
-      : targetFanOffset
-    const corridorKey = !sameRow && positions[edge.from] && positions[edge.to]
-      ? flowCorridorKey(positions[edge.from], positions[edge.to])
-      : ''
-    const lanePairKey = !sameRow && positions[edge.from] && positions[edge.to]
-      ? flowLanePairKey(positions[edge.from], positions[edge.to])
-      : ''
-    const channelEdges = crossLaneChannels.get(lanePairKey) || []
-    const trackKeys = crossLaneTracks.get(corridorKey) || []
-    const trackOffset = sameRow
-      ? 0
-      : centredOffset(trackKeys.indexOf(lanePairKey), trackKeys.length, FLOW_CROSS_TRACK_GAP)
-    const channelOffset = sameRow
-      ? 0
-      : bandOffset + trackOffset + centredOffset(channelEdges.indexOf(`${edge.from}:${edge.to}`), channelEdges.length, FLOW_CROSS_CHANNEL_GAP)
-    return [`${edge.from}:${edge.to}`, {
-      sourceOffset,
-      targetOffset,
-      channelOffset,
-    }] as const
-  }))
-  return (
-    <div className={`flow-map-layout ${highlightPaths ? 'paths-highlighted' : ''}`}>
-    <div className={`flow-canvas-shell flow-${mode}`} ref={shellRef}>
-      <svg className="flow-canvas" style={{ width: `${flowWidth}px`, height: `${flowHeight}px` }} viewBox={`0 0 ${flowWidth} ${flowHeight}`} role="group" aria-label="Story connections">
-        <defs>
-          <marker id={`flow-arrow-active-${mode}`} markerWidth="12" markerHeight="12" refX="10" refY="5" orient="auto" markerUnits="userSpaceOnUse">
-            <path d="M 0 0 L 10 5 L 0 10 Z" fill="var(--accent)" />
-          </marker>
-          {Object.entries(arcMeta).map(([arc, meta]) => <g key={arc}>
-            <marker id={flowEdgeMarkerId(mode, arc as ArcId, false)} markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto" markerUnits="userSpaceOnUse">
-              <path d="M 0 0 L 8 4 L 0 8 Z" style={{ fill: flowEdgeMarkerColour(meta.colour) }} />
-            </marker>
-            <marker id={flowEdgeMarkerId(mode, arc as ArcId, true)} markerWidth="14" markerHeight="14" refX="11" refY="5.5" orient="auto" markerUnits="userSpaceOnUse">
-              <path d="M 0 0 L 11 5.5 L 0 11 Z" style={{ fill: flowEdgeMarkerColour(meta.colour) }} />
-            </marker>
-          </g>)}
-        </defs>
-        <rect className="flow-surface" width={flowWidth} height={flowHeight} />
-        {mode === 'reference' ? (
-          <g className="flow-reference-guides">
-            <text className="flow-title" x="45" y="33">READING ORDER</text>
-            <text className="flow-direction" x={flowWidth - 35} y="33">READING CONNECTIONS</text>
-            {Array.from({ length: Math.ceil(flowWidth / 380) - 1 }, (_, index) => <line key={index} x1={380 + index * 380} y1="55" x2={380 + index * 380} y2={flowHeight - 55} />)}
-            <line x1="28" y1="55" x2={flowWidth - 28} y2="55" />
-            {rows.map((row) => <g key={row.id}><line x1="28" y1={row.y + 58} x2={flowWidth - 28} y2={row.y + 58} /><text className="flow-column-label" x="38" y={row.y - 43}>{row.label}</text></g>)}
-          </g>
-        ) : (
-          <g className="flow-lane-guides">
-            <text className="flow-title" x="28" y="33">STORY ARCS</text>
-            <text className="flow-direction" x={flowWidth - 35} y="33">READING CONNECTIONS</text>
-            {rows.map((row) => <g key={row.id}><rect className="flow-lane-band" x="20" y={row.y - 58} width={flowWidth - 40} height="116" rx="5" style={{ '--lane-colour': row.colour } as CSSProperties} /><line className="flow-lane-rule" x1={FLOW_LEFT - 20} y1={row.y} x2={flowWidth - 30} y2={row.y} /><text className="flow-lane-label" x="38" y={row.y - 13}>{row.label}</text><text className="flow-lane-sub" x="38" y={row.y + 8}>{row.id === 'opening' ? 'ENTRY ROUTE' : row.id === 'siege' ? 'FINAL APPROACH' : 'BRANCH'}</text></g>)}
-          </g>
-        )}
-        <g className="flow-edges">
-          {[...visibleConnections].sort((a, b) => Number(a.from === focusId) - Number(b.from === focusId)).map((edge) => {
-            const from = positions[edge.from]
-            const to = positions[edge.to]
-            if (!from || !to) return null
-            const active = edge.from === focusId
-            const dimmed = Boolean(focusId) && !active
-            const marker = `url(#${active ? `flow-arrow-active-${mode}` : flowEdgeMarkerId(mode, bookById[edge.from].arc, edge.kind === 'sequence')})`
-            return <path key={`${edge.from}-${edge.to}`} className={`flow-edge ${active ? 'active' : ''} ${dimmed ? 'dimmed' : ''} ${edge.kind}`} d={flowEdgePath(from, to, edgeRoutes.get(`${edge.from}:${edge.to}`) || { sourceOffset: 0, targetOffset: 0, channelOffset: 0 })} markerEnd={marker} />
-          })}
-        </g>
-        <g className="flow-nodes">
-          {visibleBooks.map((book) => <FlowBookNode key={book.id} book={book} position={positions[book.id] || { x: 20, y: 20 }} mode={mode} selected={selectedId === book.id} dimmed={Boolean(focusId) && !focusedBookIds.has(book.id)} readIds={readIds} currentId={currentId} recommended={recommendedIds.has(book.id)} onSelect={onSelect} />)}
-        </g>
-      </svg>
-    </div>
-      <button className="atlas-overview" type="button" aria-label="Jump within the story atlas" onClick={(event) => {
-        const shell = shellRef.current
-        const chart = event.currentTarget.querySelector('.overview-chart')
-        if (!shell || !chart) return
-        const bounds = chart.getBoundingClientRect()
-        const x = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width))
-        const y = Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height))
-        shell.scrollTo({ left: x * flowWidth - shell.clientWidth / 2, top: y * flowHeight - shell.clientHeight / 2, behavior: 'smooth' })
-      }}>
-        <span className="overview-label">Whole atlas · {rows.length} arcs</span>
-        <span className="overview-chart" aria-hidden="true">
-          {rows.map((row) => <span key={row.id} className="overview-lane" style={{ top: `${row.y / flowHeight * 100}%`, backgroundColor: row.colour }} />)}
-          {positions[currentId] && <span className="overview-current" style={{ left: `${positions[currentId].x / flowWidth * 100}%`, top: `${positions[currentId].y / flowHeight * 100}%` }} />}
-          <span className="overview-window" ref={overviewWindowRef} />
-        </span>
-      </button>
-    </div>
-  )
-}
-
 
 type BookActions = { readingOption: ReadingOption; readIds: Set<string>; currentId: string; onRead: (id: string) => void; onCurrent: (id: string) => void }
 
@@ -582,14 +235,14 @@ function BookNotes({ book, onSelect, onClose, ...actions }: BookActions & { book
     {incoming.length > 0 && <section className="connection-list"><h4>{actions.readingOption === 'saga' ? 'Earlier in the Saga list' : 'Incoming source arrows'}</h4>{incoming.map((edge) => <button key={edge.from} onClick={() => onSelect(bookById[edge.from])}><span>{bookById[edge.from].title}<small>{labels[edge.kind]}</small></span><ArrowRight size={15} /></button>)}</section>}
     {outgoing.length > 0 && <section className="connection-list"><h4>Where the story leads</h4>{outgoing.map((edge) => <button key={edge.to} onClick={() => onSelect(bookById[edge.to])}><span>{bookById[edge.to].title}<small>{labels[edge.kind]}</small></span><ArrowRight size={15} /></button>)}</section>}
     {sourceSteps.some((step) => !step.book) && <section className="connection-list"><h4>Steps in the original flowchart</h4>{sourceSteps.filter((step) => !step.book).map((step) => <a key={step.id} href={step.sourceUrl} target="_blank" rel="noreferrer">{step.title} <ArrowUpRight size={13} /></a>)}</section>}
-    <p className="curation-note">Connections follow <a href={source.sourceUrl} target="_blank" rel="noreferrer">{source.label}</a>. Missing steps are not joined across.</p>
+    <p className="curation-note">No story arc is assigned in this catalogue. Connections follow <a href={source.sourceUrl} target="_blank" rel="noreferrer">{source.label}</a>. Missing steps are not joined across.</p>
   </aside>
 }
 
 function BookList({ items, selectedId, onSelect, sequence = false, ...actions }: BookActions & { items: Book[]; selectedId: string; onSelect: (book: Book) => void; sequence?: boolean }) {
-  return <ol className="book-list">{items.map((book) => <li key={book.id} className={selectedId === book.id ? 'selected' : ''}>
+  return <ol className="book-list">{items.map((book) => <li key={book.id} data-book-id={book.id} className={selectedId === book.id ? 'selected' : ''}>
     <span className="book-number" aria-label={sequence ? `Saga position ${sagaBookIds.indexOf(book.id) + 1}` : undefined}>{sequence ? String(sagaBookIds.indexOf(book.id) + 1).padStart(2, '0') : book.seriesNumber ? String(book.seriesNumber).padStart(2, '0') : '—'}</span>
-    <button className="list-book" aria-pressed={selectedId === book.id} onClick={() => onSelect(book)}><strong>{book.title}</strong><span>{arcMeta[book.arc].label}</span></button>
+    <button className="list-book" aria-pressed={selectedId === book.id} onClick={() => onSelect(book)}><strong>{book.title}</strong><span>{book.kind}</span></button>
     <span className="list-status">{actions.readIds.has(book.id) ? <><Check size={15} />Finished</> : book.id === actions.currentId ? <><BookOpen size={15} />Reading</> : 'Unread'}</span>
     <button className="icon-button" aria-label={`${actions.readIds.has(book.id) ? 'Mark unread' : 'Mark finished'}: ${book.title}`} aria-pressed={actions.readIds.has(book.id)} onClick={() => actions.onRead(book.id)}>{actions.readIds.has(book.id) ? <RotateCcw size={17} /> : <Check size={17} />}</button>
   </li>)}</ol>
@@ -597,8 +250,7 @@ function BookList({ items, selectedId, onSelect, sequence = false, ...actions }:
 
 function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, readingOption, onOption }: BookActions & { selectedId: string; onSelect: (book: Book) => void; onOption: (option: ReadingOption) => void }) {
   const [search, setSearch] = useState('')
-  const [arcFilter, setArcFilter] = useState<ArcId | 'all'>('all')
-  const [mode, setMode] = useState<MapMode | 'list'>(readingOption === 'saga' ? 'list' : 'lanes')
+  const [mode, setMode] = useState<MapMode>('list')
   const [routeOnly, setRouteOnly] = useState(false)
   const [highlightPaths, setHighlightPaths] = useState(true)
   const [fullMobileMap, setFullMobileMap] = useState(false)
@@ -615,9 +267,9 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
   const recommendations = nextSteps.filter((step) => step.book)
   const routeIds = getReachableBookIds(currentId, readIds, readingOption)
   const actions = { currentId, readIds, onRead, onCurrent, readingOption }
-  const optionBooks = readingOption === 'saga' ? sagaBookIds.map((id) => bookById[id]) : books.filter((book) => referenceNodeByBookId[book.id] || book.id === currentId)
+  const optionBooks = readingOption === 'saga' ? sagaBookIds.map((id) => bookById[id]) : books.filter((book) => referenceNodeByBookId[book.id] || book.id === currentId).sort((a, b) => a.title.localeCompare(b.title))
   const selectedSourceSteps = getNextSteps(selectedId, new Set(), readingOption).filter((step) => !step.book)
-  const visibleBooks = optionBooks.filter((book) => (!search || `${book.title} ${book.faction} ${arcMeta[book.arc].label}`.toLowerCase().includes(search.toLowerCase())) && (arcFilter === 'all' || book.arc === arcFilter) && (!routeOnly || routeIds.has(book.id) || book.id === currentId))
+  const visibleBooks = optionBooks.filter((book) => (!search || `${book.title} ${book.faction}`.toLowerCase().includes(search.toLowerCase())) && (!routeOnly || routeIds.has(book.id) || book.id === currentId))
   const visibleIds = new Set(visibleBooks.map((book) => book.id))
   const nextPaths = connections.filter((edge) => edge.from === selectedId && visibleIds.has(edge.to))
   const openNotes = () => {
@@ -632,7 +284,7 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
     setNotesOpen(false)
   }
   const selectListBook = (book: Book) => { onSelect(book); openNotes() }
-  const revealBook = (book: Book, showNotes = true) => { setSearch(''); setArcFilter('all'); setRouteOnly(false); onSelect(book); setFocusRevision((value) => value + 1); if (showNotes) openNotes() }
+  const revealBook = (book: Book, showNotes = true) => { setSearch(''); setRouteOnly(false); onSelect(book); setFocusRevision((value) => value + 1); if (showNotes) openNotes(); else requestAnimationFrame(() => document.querySelector('.list-view [data-book-id="' + book.id + '"]')?.scrollIntoView({ block: 'center' })) }
   useEffect(() => {
     const onEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key !== 'Escape') return
@@ -649,39 +301,29 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
     mapCloseRef.current?.focus()
     return () => { document.body.style.overflow = previousOverflow }
   }, [fullMobileMap])
-  useEffect(() => {
-    const shell = mapRef.current?.querySelector('.flow-canvas-shell')
-    const node = mapRef.current?.querySelector(`[data-book-id="${selectedId}"]`)
-    if (shell && node) {
-      const bounds = node.getBoundingClientRect()
-      const viewport = shell.getBoundingClientRect()
-      shell.scrollTo({ left: (shell.scrollLeft + bounds.left - viewport.left <= FLOW_LEFT && viewport.width >= 440) ? 0 : Math.max(0, shell.scrollLeft + bounds.left - viewport.left - Math.max(24, (viewport.width - bounds.width) / 2)), top: shell.scrollTop + bounds.top - viewport.top - 85, behavior: 'instant' })
-    }
-  }, [focusRevision, mode, selectedId, currentId, fullMobileMap])
   return <>
     <section className="reading-option" aria-label="Reading option">
-      <label className="select-field"><span>Reading option</span><select aria-label="Reading option" value={readingOption} onChange={(event) => { onOption(event.target.value as ReadingOption); setSearch(''); setArcFilter('all'); setRouteOnly(false); setMode(event.target.value === 'saga' ? 'list' : 'lanes'); setFullMobileMap(false); setNotesOpen(false) }}>{Object.entries(readingOptions).map(([id, option]) => <option key={id} value={id}>{option.label}</option>)}</select></label>
+      <label className="select-field"><span>Reading option</span><select aria-label="Reading option" value={readingOption} onChange={(event) => { onOption(event.target.value as ReadingOption); setSearch(''); setRouteOnly(false); setMode('list'); setFullMobileMap(false); setNotesOpen(false) }}>{Object.entries(readingOptions).map(([id, option]) => <option key={id} value={id}>{option.label}</option>)}</select></label>
       <p>{source.description} <a href={source.sourceUrl} target="_blank" rel="noreferrer">View source <ArrowUpRight size={13} /></a></p>
       {readingOption === 'saga' && <span className="option-progress">{sagaBookIds.filter((id) => readIds.has(id)).length} / 12 Saga books finished</span>}
     </section>
     <section className="reading-desk" aria-label="Your reading route">
-      <div className="current-reading"><div className="section-label"><BookOpen size={17} /><h2>{readIds.has(currentId) ? 'Last finished' : 'Reading now'}</h2></div><button className="book-heading" onClick={() => revealBook(bookById[currentId])}>{bookById[currentId].title}</button><p>{arcMeta[bookById[currentId].arc].label}</p><button className="text-action" onClick={() => onRead(currentId)}>{readIds.has(currentId) ? <RotateCcw size={15} /> : <Check size={15} />}{readIds.has(currentId) ? 'Mark unread' : 'Mark finished'}</button></div>
-      <div className="next-reading"><div className="section-label"><ArrowRight size={17} /><h2>{readingOption === 'reference' ? 'Next source steps' : 'Read next'}</h2></div>{recommended?.book ? <><button className="book-heading" onClick={() => revealBook(recommended.book!)}>{recommended.title}</button><p>{recommended.explanation}</p><div className="next-actions"><button className="primary-action" onClick={() => { onCurrent(recommended.book!.id); revealBook(recommended.book!) }}>Start reading <ArrowRight size={16} /></button><button className="text-action" onClick={() => { if (mode === 'list') setMode('lanes'); setFullMobileMap(true); revealBook(recommended.book!, false); requestAnimationFrame(() => mapRef.current?.scrollIntoView({ block: 'center' })) }}>Show on map</button></div></> : nextSteps.length ? <><p>Choose a source path. These choices have no app ranking.</p><ul className="source-steps">{nextSteps.map((step) => <li key={step.id}>{step.book ? <button className="text-action" onClick={() => revealBook(step.book!)}>{step.title}<ArrowRight size={14} /></button> : <a href={step.sourceUrl} target="_blank" rel="noreferrer">{step.title}<ArrowUpRight size={14} /><small>{step.explanation}</small></a>}</li>)}</ul></> : <><h3>{readingOption === 'saga' ? 'End of the Saga selection.' : 'No next step is recorded here.'}</h3><p>{readingOption === 'saga' ? 'This selection stops at Slaves to Darkness. Any earlier unfinished books remain in the list below.' : 'Check the original flowchart for its full route and coverage.'}</p><a className="text-action" href={source.sourceUrl} target="_blank" rel="noreferrer">View source <ArrowUpRight size={14} /></a></>}</div>
+      <div className="current-reading"><div className="section-label"><BookOpen size={17} /><h2>{readIds.has(currentId) ? 'Last finished' : 'Reading now'}</h2></div><button className="book-heading" onClick={() => revealBook(bookById[currentId])}>{bookById[currentId].title}</button><p>{bookById[currentId].kind}</p><button className="text-action" onClick={() => onRead(currentId)}>{readIds.has(currentId) ? <RotateCcw size={15} /> : <Check size={15} />}{readIds.has(currentId) ? 'Mark unread' : 'Mark finished'}</button></div>
+      <div className="next-reading"><div className="section-label"><ArrowRight size={17} /><h2>{readingOption === 'reference' ? 'Next source steps' : 'Read next'}</h2></div>{recommended?.book ? <><button className="book-heading" onClick={() => revealBook(recommended.book!)}>{recommended.title}</button><p>{recommended.explanation}</p><div className="next-actions"><button className="primary-action" onClick={() => { onCurrent(recommended.book!.id); revealBook(recommended.book!) }}>Start reading <ArrowRight size={16} /></button><button className="text-action" onClick={() => { if (mode === 'list') setMode('map'); setFullMobileMap(true); revealBook(recommended.book!, false); requestAnimationFrame(() => mapRef.current?.scrollIntoView({ block: 'center' })) }}>Show on map</button></div></> : nextSteps.length ? <><p>Choose a source path. These choices have no app ranking.</p><ul className="source-steps">{nextSteps.map((step) => <li key={step.id}>{step.book ? <button className="text-action" onClick={() => revealBook(step.book!)}>{step.title}<ArrowRight size={14} /></button> : <a href={step.sourceUrl} target="_blank" rel="noreferrer">{step.title}<ArrowUpRight size={14} /><small>{step.explanation}</small></a>}</li>)}</ul></> : <><h3>{readingOption === 'saga' ? 'End of the Saga selection.' : 'No next step is recorded here.'}</h3><p>{readingOption === 'saga' ? 'This selection stops at Slaves to Darkness. Any earlier unfinished books remain in the list below.' : 'Check the original flowchart for its full route and coverage.'}</p><a className="text-action" href={source.sourceUrl} target="_blank" rel="noreferrer">View source <ArrowUpRight size={14} /></a></>}</div>
     </section>
     <div className="explore-heading"><div><h1>The story atlas<span>.</span></h1><p>Follow a story. Find where it connects.</p></div><button className="text-action" onClick={() => revealBook(bookById[currentId], false)}><Target size={16} />Return to my book</button></div>
     <div className="atlas-toolbar">
       <label className="search-field"><Search size={17} /><input aria-label="Search books or legions" placeholder="Find a book or legion" value={search} onChange={(event) => setSearch(event.target.value)} />{search && <button className="icon-button" aria-label="Clear search" onClick={() => setSearch('')}><X size={16} /></button>}</label>
-      <label className="select-field"><span>Story arc</span><select aria-label="Story arc" value={arcFilter} onChange={(event) => setArcFilter(event.target.value as ArcId | 'all')}><option value="all">All story arcs</option>{Object.entries(arcMeta).map(([id, meta]) => <option key={id} value={id}>{meta.label}</option>)}</select></label>
       <label className="route-checkbox"><input type="checkbox" checked={routeOnly} onChange={(event) => setRouteOnly(event.target.checked)} />Only my onward route</label>
       <label className="route-checkbox highlight-checkbox"><input type="checkbox" checked={highlightPaths} onChange={(event) => setHighlightPaths(event.target.checked)} />Highlight next paths</label>
-      <label className="select-field view-select"><span>View</span><select aria-label="View" value={mode} onChange={(event) => setMode(event.target.value as MapMode | 'list')}><option value="lanes">Arc lanes</option><option value="reference">Reference flow</option><option value="tactical">Campaign map</option><option value="list">Book list</option></select></label>
+      <label className="select-field view-select"><span>View</span><select aria-label="View" value={mode} onChange={(event) => setMode(event.target.value as MapMode)}><option value="map">Connection map</option><option value="list">Book list</option></select></label>
     </div>
-    <div className="atlas-workspace"><section className="atlas-main" aria-label="Reading map"><div className="map-meta"><span>{visibleBooks.length} books · {arcFilter === 'all' ? `${new Set(visibleBooks.map((book) => book.arc)).size} story arcs` : arcMeta[arcFilter].label}</span><details className="map-key"><summary>How to read the map</summary><div><p><b>Arrow:</b> a connection from the selected source.</p><p>The map includes catalogue books only. Missing stories remain linked in the source steps; arrows never skip them.</p><p>Select a book to trace its paths. Open Book notes when you want more detail. Scroll inside Arc lanes, or drag the Campaign map. Use Book list for a linear view.</p></div></details></div>
+    <div className="atlas-workspace"><section className="atlas-main" aria-label="Reading map"><div className="map-meta"><span>{visibleBooks.length} books{mode === 'list' && readingOption === 'reference' ? ' · Titles A–Z' : ''}</span><details className="map-key"><summary>How to read the map</summary><div><p><b>Arrow:</b> a connection from the selected source.</p><p>The map includes catalogue books only. Missing stories remain linked in the source steps; arrows never skip them.</p><p>Select a book to trace its paths. Open Book notes when you want more detail. Drag the Connection map, or use Book list. Book positions do not define story arcs or reading order.</p></div></details></div>
       {mode !== 'list' && <div className="next-paths" aria-live="polite"><strong>Selected: {bookById[selectedId].title}</strong>{highlightPaths && (nextPaths.length ? <div>{nextPaths.map((edge) => <button key={edge.to} onClick={() => selectMapBook(bookById[edge.to])}><ArrowRight size={14} /><span>{bookById[edge.to].title}<small>{edge.kind === 'sequence' ? 'Publisher’s listed order' : 'Reference arrow'}</small></span></button>)}</div> : <span>No catalogue paths are visible. Check source steps and filters.</span>)}<button className="text-action path-notes-action" onClick={openNotes}>Book notes <ArrowRight size={15} /></button></div>}
       {selectedSourceSteps.length > 0 && <div className="source-paths"><span>Selected book: steps outside this catalogue</span>{selectedSourceSteps.map((step) => <a key={step.id} href={step.sourceUrl} target="_blank" rel="noreferrer">{step.title} <ArrowUpRight size={13} /></a>)}</div>}
-      {visibleBooks.length === 0 ? <div className="empty-state"><h2>No books found</h2><p>Try another title, or clear the filters.</p><button className="quiet-action" onClick={() => { setSearch(''); setArcFilter('all'); setRouteOnly(false) }}>Clear filters</button></div> : <>
-        <button ref={mobileMapToggleRef} className="mobile-map-toggle text-action" aria-expanded={fullMobileMap} onClick={() => { if (mode === 'list') setMode('lanes'); setFullMobileMap(!fullMobileMap) }}>{fullMobileMap ? <List size={17} /> : <Map size={17} />}{fullMobileMap ? 'Show book list' : 'Explore full map'}</button>
-        {mode !== 'list' && <div ref={mapRef} className={`atlas-map ${fullMobileMap ? 'mobile-expanded' : ''}`}><button ref={mapCloseRef} className="map-fullscreen-close quiet-action" onClick={closeFullMobileMap}><List size={17} />Show book list</button><label className="map-highlight-mobile"><input type="checkbox" checked={highlightPaths} onChange={(event) => setHighlightPaths(event.target.checked)} />Next paths</label>{mode === 'tactical' ? <MapCanvas focusRevision={focusRevision} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} highlightPaths={highlightPaths} connections={connections} recommendedIds={new Set(recommendations.map((item) => item.book!.id))} onSelect={selectMapBook} /> : <FlowMapCanvas mode={mode} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} highlightPaths={highlightPaths} connections={connections} recommendedIds={new Set(recommendations.map((item) => item.book!.id))} onSelect={selectMapBook} />}<div className="map-selected-mobile"><div className="map-selected-heading"><span><small>Selected book</small><strong>{bookById[selectedId].title}</strong></span><button className="quiet-action" onClick={openNotes}>Book notes</button></div><div className="map-selected-branches">{highlightPaths ? <><small>Next</small>{nextPaths.length ? nextPaths.map((edge) => <button key={edge.to} onClick={() => selectMapBook(bookById[edge.to])}><ArrowRight size={13} />{bookById[edge.to].title}</button>) : <span>No visible next path</span>}</> : <span>Next paths hidden</span>}</div></div></div>}
+      {visibleBooks.length === 0 ? <div className="empty-state"><h2>No books found</h2><p>Try another title, or clear the filters.</p><button className="quiet-action" onClick={() => { setSearch(''); setRouteOnly(false) }}>Clear filters</button></div> : <>
+        <button ref={mobileMapToggleRef} className="mobile-map-toggle text-action" aria-expanded={fullMobileMap} onClick={() => { if (mode === 'list') setMode('map'); setFullMobileMap(!fullMobileMap) }}>{fullMobileMap ? <List size={17} /> : <Map size={17} />}{fullMobileMap ? 'Show book list' : 'Explore full map'}</button>
+        {mode !== 'list' && <div ref={mapRef} className={`atlas-map ${fullMobileMap ? 'mobile-expanded' : ''}`}><button ref={mapCloseRef} className="map-fullscreen-close quiet-action" onClick={closeFullMobileMap}><List size={17} />Show book list</button><label className="map-highlight-mobile"><input type="checkbox" checked={highlightPaths} onChange={(event) => setHighlightPaths(event.target.checked)} />Next paths</label><MapCanvas focusRevision={focusRevision} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} highlightPaths={highlightPaths} connections={connections} recommendedIds={new Set(recommendations.map((item) => item.book!.id))} onSelect={selectMapBook} /><div className="map-selected-mobile"><div className="map-selected-heading"><span><small>Selected book</small><strong>{bookById[selectedId].title}</strong></span><button className="quiet-action" onClick={openNotes}>Book notes</button></div><div className="map-selected-branches">{highlightPaths ? <><small>Next</small>{nextPaths.length ? nextPaths.map((edge) => <button key={edge.to} onClick={() => selectMapBook(bookById[edge.to])}><ArrowRight size={13} />{bookById[edge.to].title}</button>) : <span>No visible next path</span>}</> : <span>Next paths hidden</span>}</div></div></div>}
         <div className={`${mode === 'list' ? 'list-view' : 'mobile-book-list'} ${fullMobileMap ? 'mobile-hidden' : ''}`}><BookList sequence={readingOption === 'saga'} items={visibleBooks} selectedId={selectedId} onSelect={selectListBook} {...actions} /></div>
       </>}
       <div className="map-caption"><span><span className="status-sample selected" />Selected</span><span><BookOpen size={13} />Reading</span><span><Check size={13} />Finished</span><span className="caption-note">Select a book to trace its paths.</span></div>
@@ -689,7 +331,7 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
   </>
 }
 
-function Collection({ view, selectedId, onSelect, ...actions }: BookActions & { view: 'atlas' | 'library'; selectedId: string; onSelect: (book: Book) => void }) {
+function Collection({ selectedId, onSelect, ...actions }: BookActions & { selectedId: string; onSelect: (book: Book) => void }) {
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [notesOpen, setNotesOpen] = useState(false)
@@ -708,9 +350,9 @@ function Collection({ view, selectedId, onSelect, ...actions }: BookActions & { 
     return () => document.removeEventListener('keydown', onEscape)
   }, [notesOpen])
   const items = books.filter((book) => (!query || `${book.title} ${book.faction}`.toLowerCase().includes(query.toLowerCase())) && (filter === 'all' || actions.readIds.has(book.id) === (filter === 'finished')))
-  return <><div className="collection-heading"><h1>{view === 'atlas' ? 'Stories within the story.' : 'Your reading library.'}</h1><p>{view === 'atlas' ? 'Browse the nine story arcs. Each book has one primary grouping in this guide.' : `${actions.readIds.size} of ${books.length} books finished. Your progress stays in this browser.`}</p></div>
+  return <><div className="collection-heading"><h1>Your reading library.</h1><p>{`${actions.readIds.size} of ${books.length} books finished. Your progress stays in this browser.`}</p></div>
     <div className="atlas-toolbar"><label className="search-field"><Search size={17} /><input aria-label="Search collection" placeholder="Find a book or legion" value={query} onChange={(event) => setQuery(event.target.value)} /></label><label className="select-field"><span>Status</span><select aria-label="Reading status" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">All books</option><option value="finished">Finished</option><option value="unread">Unread</option></select></label></div>
-    <div className="atlas-workspace"><section className="collection-books">{items.length === 0 ? <div className="empty-state"><h2>No books here yet</h2><p>Change the status filter or search to see more books.</p><button className="quiet-action" onClick={() => { setQuery(''); setFilter('all') }}>Show all books</button></div> : view === 'library' ? <BookList items={items} selectedId={selectedId} onSelect={selectAndShowNotes} {...actions} /> : Object.entries(arcMeta).map(([id, meta]) => { const arcBooks = items.filter((book) => book.arc === id); return arcBooks.length > 0 && <section className="arc-section" key={id}><div className="arc-heading"><h2>{meta.label}</h2><span>{arcBooks.filter((book) => actions.readIds.has(book.id)).length}/{arcBooks.length} finished</span></div><BookList items={arcBooks} selectedId={selectedId} onSelect={selectAndShowNotes} {...actions} /></section> })}</section>{notesOpen && <BookNotes book={bookById[selectedId]} onSelect={selectAndShowNotes} onClose={closeNotes} {...actions} />}</div>
+    <div className="atlas-workspace"><section className="collection-books">{items.length === 0 ? <div className="empty-state"><h2>No books here yet</h2><p>Change the status filter or search to see more books.</p><button className="quiet-action" onClick={() => { setQuery(''); setFilter('all') }}>Show all books</button></div> : <BookList items={items} selectedId={selectedId} onSelect={selectAndShowNotes} {...actions} />}</section>{notesOpen && <BookNotes book={bookById[selectedId]} onSelect={selectAndShowNotes} onClose={closeNotes} {...actions} />}</div>
   </>
 }
 
@@ -729,8 +371,8 @@ export function App() {
   const onOption = (option: ReadingOption) => { setProgress({ ...progress, readingOption: option }); setNotice(`Reading option: ${readingOptions[option].label}.`) }
   const onSelect = (book: Book) => { setSelectedId(book.id); setNotice(`Selected: ${book.title}.`) }
   const exportRoute = () => { const url = URL.createObjectURL(new Blob([JSON.stringify(progress, null, 2)], { type: 'application/json' })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'heresy-pathfinder-route.json'; anchor.click(); URL.revokeObjectURL(url); setNotice('Reading progress exported.') }
-  return <div className="app-shell"><a className="skip-link" href="#main">Skip to content</a><header className="topbar"><button className="brand-lockup" onClick={() => setView('map')} aria-label="Pathfinder home"><BookOpen size={25} strokeWidth={1.3} /><span>Pathfinder<small>A Horus Heresy reading companion</small></span></button><nav className="primary-nav" aria-label="Primary navigation">{([['map', 'Explore'], ['atlas', 'Story arcs'], ['library', 'My library']] as const).map(([id, label]) => <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav><div className="header-progress"><span>{readIds.size} / {books.length} finished</span><progress aria-label="Books finished" value={readIds.size} max={books.length} /></div></header>
-    <main id="main">{storageError && <div className="storage-error" role="alert">Your browser could not save progress. Keep this page open and <button onClick={exportRoute}>export your progress</button>.</div>}{view === 'map' ? <Explore readingOption={progress.readingOption} onOption={onOption} selectedId={selectedId} onSelect={onSelect} currentId={progress.currentId} readIds={readIds} onRead={onRead} onCurrent={onCurrent} /> : <Collection readingOption={progress.readingOption} key={view} view={view} selectedId={selectedId} onSelect={onSelect} currentId={progress.currentId} readIds={readIds} onRead={onRead} onCurrent={onCurrent} />}
+  return <div className="app-shell"><a className="skip-link" href="#main">Skip to content</a><header className="topbar"><button className="brand-lockup" onClick={() => setView('map')} aria-label="Pathfinder home"><BookOpen size={25} strokeWidth={1.3} /><span>Pathfinder<small>A Horus Heresy reading companion</small></span></button><nav className="primary-nav" aria-label="Primary navigation">{([['map', 'Explore'], ['library', 'My library']] as const).map(([id, label]) => <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav><div className="header-progress"><span>{readIds.size} / {books.length} finished</span><progress aria-label="Books finished" value={readIds.size} max={books.length} /></div></header>
+    <main id="main">{storageError && <div className="storage-error" role="alert">Your browser could not save progress. Keep this page open and <button onClick={exportRoute}>export your progress</button>.</div>}{view === 'map' ? <Explore readingOption={progress.readingOption} onOption={onOption} selectedId={selectedId} onSelect={onSelect} currentId={progress.currentId} readIds={readIds} onRead={onRead} onCurrent={onCurrent} /> : <Collection readingOption={progress.readingOption} selectedId={selectedId} onSelect={onSelect} currentId={progress.currentId} readIds={readIds} onRead={onRead} onCurrent={onCurrent} />}
       <div className="notice-bar"><span role="status" aria-live="polite">{notice || 'Progress is saved on this device.'}</span>{undo && <button className="text-action" onClick={() => { setProgress({ ...undo, readingOption: progress.readingOption }); setUndo(null); setNotice('Last progress change undone.') }}>Undo</button>}</div>
       {view === 'library' && <div className="library-tools"><button className="quiet-action" onClick={exportRoute}><Download size={16} />Export progress</button>{confirmReset ? <div className="reset-confirm"><span>Clear all reading progress?</span><button className="quiet-action" onClick={() => { setUndo(progress); setProgress({ ...progress, readIds: [], currentId: 'horus-rising' }); setSelectedId('horus-rising'); setConfirmReset(false); setNotice('Progress cleared. You can undo this change.') }}>Clear progress</button><button className="text-action" onClick={() => setConfirmReset(false)}>Cancel</button></div> : <button className="text-action" onClick={() => setConfirmReset(true)}>Reset progress</button>}</div>}
     </main><footer className="site-footer"><span>Pathfinder <span className="footer-divider">/</span> An unofficial companion to source reading guides</span><div><a href="https://www.kylebb.com/HH/HHSeriesOrder.svg" target="_blank" rel="noreferrer">Reference flowchart <ArrowUpRight size={13} /></a><a href="https://gaming.kylebb.com/hhtimeline/" target="_blank" rel="noreferrer">Reading timeline <ArrowUpRight size={13} /></a></div></footer></div>

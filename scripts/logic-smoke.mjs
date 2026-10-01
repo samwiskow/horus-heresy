@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict'
-import { books } from '../src/data.ts'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { App } from '../src/App.tsx'
+import { bookById, books } from '../src/data.ts'
+import { getEdgeRoute, NODE_WIDTH, NODE_HEIGHT } from '../src/map-layout.ts'
 import { getReachableBookIds, getNextSteps } from '../src/logic.ts'
 import { getConnections, reference, referenceBookByNodeId, sagaBookIds } from '../src/reading-options.ts'
 import { parseProgress, toggleFinished } from '../src/progress.ts'
@@ -104,6 +108,37 @@ run('keeps campaign map book plates separate', () => {
       const book = books[index]
       const overlaps = book.x < other.x + 180 && book.x + 180 > other.x && book.y < other.y + 74 && book.y + 74 > other.y
       assert.equal(overlaps, false, `${book.id} overlaps ${other.id}`)
+    }
+  }
+})
+
+run('offers source browsing without unsupported story arc groups', () => {
+  const page = renderToStaticMarkup(createElement(App))
+  assert.match(page, /Reference flowchart/)
+  assert.match(page, /Black Library: Horus Heresy Saga/)
+  assert.match(page, /Titles A–Z/)
+  assert.match(page, /Connection map/)
+  assert.doesNotMatch(page, /Legions in collision|Loyalist convergence|The Warmaster ascendant|Arc lanes|aria-label="Story arc"|>Story arcs</)
+})
+
+run('routes all source arrows outside book plates', () => {
+  for (const option of ['reference', 'saga']) {
+    for (const edge of getConnections(option)) {
+      const route = getEdgeRoute(bookById[edge.from], bookById[edge.to])
+      for (let index = 1; index < route.length; index++) {
+        const start = route[index - 1]
+        const end = route[index]
+        for (const book of books) {
+          const left = book.x - 4
+          const right = book.x + NODE_WIDTH + 4
+          const top = book.y - 4
+          const bottom = book.y + NODE_HEIGHT + 4
+          const crosses = start.y === end.y
+            ? start.y > top && start.y < bottom && Math.max(start.x, end.x) > left && Math.min(start.x, end.x) < right
+            : start.x > left && start.x < right && Math.max(start.y, end.y) > top && Math.min(start.y, end.y) < bottom
+          assert.equal(crosses, false, `${edge.from} → ${edge.to} crosses ${book.id}`)
+        }
+      }
     }
   }
 })

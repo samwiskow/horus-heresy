@@ -20,15 +20,16 @@ The product turns the Horus Heresy reading order into an explorable story graph.
 
 ## Positioning
 
-This is a stateful reading companion rather than a static chronology: the graph changes meaning as the reader marks books read and follows an arc.
+This is a stateful reading companion rather than a static chronology: the graph changes meaning as the reader marks books read and follows a source route.
 
 ## Operating Context
 
-The reader explores a dense flowchart, searches for a book or arc, selects a book for context, marks progress, and returns later to continue their route. The first version is local-first and personal; progress must survive reloads and remain exportable in a portable format.
+The reader explores a dense flowchart, searches for a book or legion, selects a book for context, marks progress, and returns later to continue their route. The first version is local-first and personal; progress must survive reloads and remain exportable in a portable format.
 
 ## Capabilities and Constraints
 
-- The story atlas is the core exploration surface: scan the full set of arcs, move through the map, search, filter, inspect books, and highlight a personal route. Arc lanes are the default map view; Campaign map is an alternate view.
+- Explore is the core exploration surface: browse a book list, search, filter the onward route, inspect books, and highlight source connections on the Connection map. Book list is the default. Reference titles are alphabetical; Saga retains the publisher's listed order.
+- No story arc memberships are assigned. The reference uses coloured branches but does not supply named memberships that can be reproduced without interpretation. The app does not infer arcs from colours, factions, or shared arrows. Map positions are for browsing only.
 - Reading connections follow Daunt’s reference flowchart, version 0.9. Each map arrow has a source identifier. The app does not add connections or rank source branches. Missing catalogue stories remain source links instead of being bypassed.
 - Black Library: Horus Heresy Saga is a separate 12-book option in the publisher’s listed order. It stops at Slaves to Darkness. Route selection is saved; finished books and the current reading position are shared.
 - The first data set is core novels plus a curated set of important supporting stories, not an attempt to encode every short story immediately.
