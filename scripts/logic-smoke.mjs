@@ -3,7 +3,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { App } from '../src/App.tsx'
 import { bookById, books } from '../src/data.ts'
-import { getEdgeRoute, NODE_WIDTH, NODE_HEIGHT } from '../src/map-layout.ts'
+import { getEdgeRoute, getConnectionFocus, layoutSourceFlow, NODE_WIDTH, NODE_HEIGHT } from '../src/map-layout.ts'
 import { getReachableBookIds, getNextSteps } from '../src/logic.ts'
 import { getConnections, reference, referenceBookByNodeId, referenceNodeByBookId, sagaBookIds, siegeBookIds, siegeBookNumbers } from '../src/reading-options.ts'
 import { parseProgress, toggleFinished } from '../src/progress.ts'
@@ -169,11 +169,13 @@ run('offers source browsing without unsupported story arc groups', () => {
 run('routes all source arrows outside book plates', () => {
   for (const option of ['reference', 'saga', 'siege']) {
     for (const edge of getConnections(option)) {
-      const route = getEdgeRoute(bookById[edge.from], bookById[edge.to])
+      const items = layoutSourceFlow(books, getConnections(option))
+      const placed = Object.fromEntries(items.map((book) => [book.id, book]))
+      const route = getEdgeRoute(placed[edge.from], placed[edge.to], getConnections(option), items)
       for (let index = 1; index < route.length; index++) {
         const start = route[index - 1]
         const end = route[index]
-        for (const book of books) {
+        for (const book of items) {
           const left = book.x - 4
           const right = book.x + NODE_WIDTH + 4
           const top = book.y - 4
@@ -186,6 +188,57 @@ run('routes all source arrows outside book plates', () => {
       }
     }
   }
+})
+
+run('lays out source arrows downwards without moving catalogue data or overlapping plates', () => {
+  const before = JSON.stringify(books)
+  for (const option of ['reference', 'saga', 'siege']) {
+    const edges = getConnections(option)
+    const items = layoutSourceFlow(books, edges)
+    const placed = Object.fromEntries(items.map((book) => [book.id, book]))
+    for (const edge of edges) assert.ok(placed[edge.to].y > placed[edge.from].y, `${option}: ${edge.from} → ${edge.to}`)
+    for (const [index, book] of items.entries()) for (const other of items.slice(index + 1)) {
+      assert.equal(book.x < other.x + NODE_WIDTH && book.x + NODE_WIDTH > other.x && book.y < other.y + NODE_HEIGHT && book.y + NODE_HEIGHT > other.y, false)
+    }
+    assert.deepEqual(layoutSourceFlow(books, edges), items)
+  }
+  assert.equal(JSON.stringify(books), before)
+})
+
+run('keeps different source arrows from sharing line segments', () => {
+  for (const option of ['reference', 'saga', 'siege']) {
+    const edges = getConnections(option)
+    const items = layoutSourceFlow(books, edges)
+    const placed = Object.fromEntries(items.map((book) => [book.id, book]))
+    const segments = edges.flatMap((edge) => {
+      const points = getEdgeRoute(placed[edge.from], placed[edge.to], edges, items)
+      return points.slice(1).map((end, index) => ({ edge, start: points[index], end })).filter(({ start, end }) => start.x !== end.x || start.y !== end.y)
+    })
+    for (const [index, a] of segments.entries()) for (const b of segments.slice(index + 1)) {
+      if (a.edge === b.edge) continue
+      const horizontal = a.start.y === a.end.y && b.start.y === b.end.y && a.start.y === b.start.y
+      const vertical = a.start.x === a.end.x && b.start.x === b.end.x && a.start.x === b.start.x
+      const overlaps = horizontal ? Math.min(Math.max(a.start.x, a.end.x), Math.max(b.start.x, b.end.x)) > Math.max(Math.min(a.start.x, a.end.x), Math.min(b.start.x, b.end.x))
+        : vertical && Math.min(Math.max(a.start.y, a.end.y), Math.max(b.start.y, b.end.y)) > Math.max(Math.min(a.start.y, a.end.y), Math.min(b.start.y, b.end.y))
+      assert.equal(overlaps, false, `${option}: ${a.edge.from} → ${a.edge.to} shares a segment with ${b.edge.from} → ${b.edge.to}`)
+    }
+  }
+})
+
+run('focuses only direct incoming and outgoing source connections', () => {
+  const edges = getConnections('reference')
+  const before = JSON.stringify(edges)
+  const focused = getConnectionFocus(edges, 'know-no-fear')
+  assert.deepEqual([...focused.ids].sort(), ['know-no-fear', 'legion', 'battle-for-the-abyss', 'betrayer'].sort())
+  assert.equal(focused.edges.length, 3)
+  assert.equal(focused.ids.has('first-heretic'), false)
+  assert.deepEqual([...getConnectionFocus(edges, 'mechanicum').ids], ['mechanicum'])
+  assert.equal(getConnectionFocus(edges, 'mechanicum').edges.length, 0)
+  for (const option of ['saga', 'siege']) {
+    const ids = option === 'saga' ? sagaBookIds : siegeBookIds
+    assert.deepEqual([...getConnectionFocus(getConnections(option), ids[1]).ids].sort(), ids.slice(0, 3).sort())
+  }
+  assert.equal(JSON.stringify(edges), before)
 })
 
 run('loads old saved progress into the reference option without losing books', () => {
