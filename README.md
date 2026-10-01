@@ -19,11 +19,11 @@ Pathfinder adds its own interface, a selective catalogue, and local reading prog
 ## A reading desk and a story atlas
 
 - **Pick up where you left off.** See your current book and the next steps recorded by your chosen source.
-- **Choose a source.** Follow Daunt’s reference flowchart or the official [Black Library: Horus Heresy Saga selection](https://www.warhammer-community.com/en-gb/articles/17oswfuf/world-championships-preview-experience-the-greatest-hits-of-the-horus-heresy-saga-in-a-new-curated-series/). Saga includes 12 books in the publisher’s listed order and ends at *Slaves to Darkness*. Progress is shared across both options.
+- **Choose a source.** Follow Daunt’s reference flowchart, the official [Black Library: Horus Heresy Saga selection](https://www.warhammer-community.com/en-gb/articles/17oswfuf/world-championships-preview-experience-the-greatest-hits-of-the-horus-heresy-saga-in-a-new-curated-series/), or [Siege of Terra](https://www.blacklibrary.com/series/series-sot). Saga includes 12 books and ends at *Slaves to Darkness*. Siege follows the publisher's numbered main series, including all three final volumes. Progress is shared across the options.
 - **Follow the branches.** Use the connection map to highlight source arrows and inspect book notes. Map positions are a browsing layout, not arc memberships or reading order.
 - **Find your route.** Search by title or legion, or show the onward route from your current book.
 - **Keep a reading library.** Mark books finished independently of your reading position, undo a progress change, and export progress as JSON.
-- **Use the view that suits you.** Book list is the default on desktop and phones; the full map remains available. Reference titles appear alphabetically. Saga retains the publisher's list order.
+- **Use the view that suits you.** Book list is the default on desktop and phones; the full map remains available. Reference titles appear alphabetically. Saga and Siege retain their publisher order.
 - **Choose when to reveal details.** Story summaries sit behind a disclosure with a spoiler label. Titles and relationship labels remain visible, so this is not a fully spoiler-free guide.
 
 The Annotated edition design uses warm paper colours, serif book titles, and red selection marks. Reading advice and the map share the screen.
@@ -60,7 +60,7 @@ pnpm preview --host 127.0.0.1
 | File | Purpose |
 | --- | --- |
 | [`src/data.ts`](src/data.ts) | Book catalogue and neutral map positions |
-| [`src/reading-options.ts`](src/reading-options.ts) | Source connections and the publisher's Saga selection |
+| [`src/reading-options.ts`](src/reading-options.ts) | Source connections and the publisher's Saga and Siege orders |
 | [`src/logic.ts`](src/logic.ts) | Source-defined next steps and onward routes |
 | [`src/progress.ts`](src/progress.ts) | Completion changes that preserve reading position |
 | [`src/App.tsx`](src/App.tsx) | Map, library, book notes, and browser persistence |
@@ -96,3 +96,9 @@ python3 scripts/import-reference.py /path/to/HHSeriesOrder.svg /tmp/reference-fl
 ```
 
 Black Library Saga is a separate publisher selection, not a replacement for the full branching guide. Its map lines indicate adjacent entries in the published list, not inferred sequel or prerequisite relationships. The app adds no continuation after its final title.
+
+Explore ends with a separate Siege of Terra option. Its source record preserves
+Black Library's book numbers and product URLs. See the [Siege source note](docs/siege-of-terra-source.md).
+The reference's unresolved Solar War arrow remains unchanged; the continuation
+uses the publisher's numbered main series. Supporting novellas and anthologies
+remain available through the publisher's catalogue.

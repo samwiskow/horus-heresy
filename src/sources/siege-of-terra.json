@@ -1,0 +1,16 @@
+{
+  "url": "https://www.blacklibrary.com/series/series-sot",
+  "checked": "2026-10-01",
+  "books": [
+    {"id": "solar-war", "number": "1", "url": "https://www.blacklibrary.com/series/series-sot/the-solar-war-ebook-2019.html"},
+    {"id": "lost-and-damned", "number": "2", "url": "https://www.blacklibrary.com/series/series-sot/the-lost-and-the-damned-ebook-2019.html"},
+    {"id": "first-wall", "number": "3", "url": "https://www.blacklibrary.com/all-products/the-first-wall-mp3-2020.html"},
+    {"id": "saturnine", "number": "4", "url": "https://www.blacklibrary.com/series/series-sot/saturnine-ebook-2020.html"},
+    {"id": "mortis", "number": "5", "url": "https://www.blacklibrary.com/all-products/siege-of-terra-mortis-ebook-2021.html"},
+    {"id": "warhawk", "number": "6", "url": "https://www.blacklibrary.com/the-horus-heresy/hh-sot/warhawk-ebook-2021.html"},
+    {"id": "echoes-of-eternity", "number": "7", "url": "https://www.blacklibrary.com/audio/the-horus-heresy-audiobooks/mp3-echoes-of-eternity-eng-2022.html"},
+    {"id": "end-and-death-i", "number": "8, Part 1", "url": "https://www.blacklibrary.com/the-horus-heresy/hh-sot/ebook-the-end-and-the-death-volume-i-eng-2023.html"},
+    {"id": "end-and-death-ii", "number": "8, Part 2", "url": "https://www.blacklibrary.com/new-titles/the-horus-heresy/ebook-the-end-and-the-death-volume-ii-eng-2023.html"},
+    {"id": "end-and-death-iii", "number": "8, Part 3", "url": "https://www.blacklibrary.com/series/series-sot/ebook-the-end-and-the-death-volume-iii-eng-2024.html"}
+  ]
+}

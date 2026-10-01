@@ -1,5 +1,5 @@
 import { bookById, type Book } from './data'
-import { readingOptions, reference, referenceBookByNodeId, referenceNodeByBookId, sagaBookIds, type ReadingOption } from './reading-options'
+import { getSequenceBookIds, readingOptions, reference, referenceBookByNodeId, referenceNodeByBookId, type ReadingOption } from './reading-options'
 
 export type ReadingStep = {
   id: string
@@ -10,10 +10,12 @@ export type ReadingStep = {
 }
 
 export function getNextSteps(currentId: string | null, readIds: Set<string>, option: ReadingOption): ReadingStep[] {
-  if (option === 'saga') {
-    const index = currentId ? sagaBookIds.indexOf(currentId) : -1
-    const nextId = sagaBookIds.slice(index + 1).find((id) => !readIds.has(id))
-    return nextId ? [{ id: nextId, title: bookById[nextId].title, book: bookById[nextId], explanation: index < 0 ? 'First unfinished book in Black Library’s published Saga list.' : 'Next unfinished book in Black Library’s published Saga list.', sourceUrl: readingOptions.saga.sourceUrl }] : []
+  if (option !== 'reference') {
+    const sequence = getSequenceBookIds(option)
+    const index = currentId ? sequence.indexOf(currentId) : -1
+    const nextId = sequence.slice(index + 1).find((id) => !readIds.has(id))
+    const source = option === 'siege' ? 'numbered Siege of Terra series' : 'published Saga list'
+    return nextId ? [{ id: nextId, title: bookById[nextId].title, book: bookById[nextId], explanation: `${index < 0 ? 'First' : 'Next'} unfinished book in Black Library’s ${source}.`, sourceUrl: readingOptions[option].sourceUrl }] : []
   }
   const node = currentId ? referenceNodeByBookId[currentId] : undefined
   if (!node) return []
@@ -38,7 +40,10 @@ export function getNextSteps(currentId: string | null, readIds: Set<string>, opt
 }
 
 export function getReachableBookIds(currentId: string | null, readIds: Set<string>, option: ReadingOption) {
-  if (option === 'saga') return new Set(sagaBookIds.slice(currentId ? sagaBookIds.indexOf(currentId) + 1 : 0).filter((id) => !readIds.has(id)))
+  if (option !== 'reference') {
+    const sequence = getSequenceBookIds(option)
+    return new Set(sequence.slice(currentId ? sequence.indexOf(currentId) + 1 : 0).filter((id) => !readIds.has(id)))
+  }
   const node = currentId ? referenceNodeByBookId[currentId] : undefined
   if (!node) return new Set<string>()
   const reachable = new Set<string>()

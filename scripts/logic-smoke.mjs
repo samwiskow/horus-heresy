@@ -5,7 +5,7 @@ import { App } from '../src/App.tsx'
 import { bookById, books } from '../src/data.ts'
 import { getEdgeRoute, NODE_WIDTH, NODE_HEIGHT } from '../src/map-layout.ts'
 import { getReachableBookIds, getNextSteps } from '../src/logic.ts'
-import { getConnections, reference, referenceBookByNodeId, sagaBookIds } from '../src/reading-options.ts'
+import { getConnections, reference, referenceBookByNodeId, sagaBookIds, siegeBookIds, siegeBookNumbers } from '../src/reading-options.ts'
 import { parseProgress, toggleFinished } from '../src/progress.ts'
 
 const run = (name, test) => {
@@ -83,9 +83,24 @@ run('finished books advance only through source connections', () => {
   assert.equal(reachable.has('galaxy-in-flames'), true)
 })
 
+run('follows the publisher’s numbered Siege series through all three final volumes', () => {
+  const expected = ['solar-war', 'lost-and-damned', 'first-wall', 'saturnine', 'mortis', 'warhawk', 'echoes-of-eternity', 'end-and-death-i', 'end-and-death-ii', 'end-and-death-iii']
+  assert.deepEqual(siegeBookIds, expected)
+  assert.deepEqual(getConnections('siege').map((edge) => [edge.from, edge.to]), expected.slice(0, -1).map((id, index) => [id, expected[index + 1]]))
+  assert.equal(getConnections('siege').every((edge) => edge.sourceUrl.startsWith('https://www.blacklibrary.com/')), true)
+  assert.equal(siegeBookNumbers['end-and-death-ii'], '8, Part 2')
+  assert.equal(getNextSteps('solar-war', new Set(['lost-and-damned']), 'siege')[0].book.id, 'first-wall')
+  assert.equal(getNextSteps('end-and-death-ii', new Set(), 'siege')[0].book.id, 'end-and-death-iii')
+  assert.deepEqual(getNextSteps('end-and-death-iii', new Set(), 'siege'), [])
+  assert.equal(getNextSteps('slaves-to-darkness', new Set(), 'siege')[0].book.id, 'solar-war')
+  assert.equal(getReachableBookIds('solar-war', new Set(['lost-and-damned']), 'siege').has('lost-and-damned'), false)
+  assert.equal(siegeBookIds.includes('sons-of-selenar'), false)
+  assert.equal(siegeBookIds.includes('fury-of-magnus'), false)
+})
+
 run('keeps caller progress unchanged when finding routes', () => {
   const readIds = new Set(['horus-rising'])
-  for (const option of ['reference', 'saga']) {
+  for (const option of ['reference', 'saga', 'siege']) {
     getNextSteps('false-gods', readIds, option)
     getReachableBookIds('false-gods', readIds, option)
   }
@@ -95,7 +110,7 @@ run('keeps caller progress unchanged when finding routes', () => {
 run('keeps source graphs valid without requiring invented links for every book', () => {
   const ids = new Set(books.map((book) => book.id))
   assert.equal(ids.size, books.length)
-  for (const option of ['reference', 'saga']) {
+  for (const option of ['reference', 'saga', 'siege']) {
     const connections = getConnections(option)
     assert.equal(connections.every((edge) => ids.has(edge.from) && ids.has(edge.to)), true)
     assert.equal(new Set(connections.map((edge) => `${edge.from}:${edge.to}`)).size, connections.length)
@@ -118,11 +133,13 @@ run('offers source browsing without unsupported story arc groups', () => {
   assert.match(page, /Black Library: Horus Heresy Saga/)
   assert.match(page, /Titles A–Z/)
   assert.match(page, /Connection map/)
+  assert.match(page, /Siege of Terra continuation/)
+  assert.match(page, /Explore Siege of Terra/)
   assert.doesNotMatch(page, /Legions in collision|Loyalist convergence|The Warmaster ascendant|Arc lanes|aria-label="Story arc"|>Story arcs</)
 })
 
 run('routes all source arrows outside book plates', () => {
-  for (const option of ['reference', 'saga']) {
+  for (const option of ['reference', 'saga', 'siege']) {
     for (const edge of getConnections(option)) {
       const route = getEdgeRoute(bookById[edge.from], bookById[edge.to])
       for (let index = 1; index < route.length; index++) {
@@ -153,6 +170,13 @@ run('retains Saga selection across a save and reload', () => {
   assert.equal(parseProgress({ ...progress, readingOption: 'unknown' }).readingOption, 'reference')
   assert.deepEqual(parseProgress(null), { readIds: [], currentId: 'horus-rising', readingOption: 'reference' })
   assert.deepEqual(parseProgress({ readIds: ['horus-rising', 'horus-rising', 'unknown', 2] }).readIds, ['horus-rising'])
+})
+
+run('retains Siege selection and progress across a save and reload', () => {
+  const progress = { readIds: ['horus-rising', 'solar-war'], currentId: 'lost-and-damned', readingOption: 'siege' }
+  assert.deepEqual(parseProgress(JSON.parse(JSON.stringify(progress))), progress)
+  assert.equal(toggleFinished(progress, 'saturnine').readingOption, 'siege')
+  assert.equal(toggleFinished(progress, 'saturnine').currentId, 'lost-and-damned')
 })
 
 run('finishing another book preserves the current position and reading option', () => {

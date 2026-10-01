@@ -60,6 +60,8 @@ main { padding: 0 44px 26px; }
 .reading-option p { flex: 1; min-width: 240px; max-width: 75ch; margin: 0; color: var(--muted); font-size: 12px; }
 .reading-option a { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); }
 .option-progress { font-size: 12px; font-variant-numeric: tabular-nums; }
+.siege-continuation { margin-top: 22px; }
+.siege-continuation h2 { margin: 0; font-family: var(--serif); font-size: 22px; font-weight: 400; letter-spacing: -.025em; }
 .source-steps { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 20px; margin: 0; padding: 0; list-style: none; }
 .source-steps li { flex: 1 1 190px; }
 .source-steps a { display: block; padding: 10px 0; color: var(--accent); font-size: 13px; }
