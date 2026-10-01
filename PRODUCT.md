@@ -32,6 +32,7 @@ The reader explores a dense flowchart, searches for a book or legion, selects a 
 - No story arc memberships are assigned. The reference uses coloured branches but does not supply named memberships that can be reproduced without interpretation. The app does not infer arcs from colours, factions, or shared arrows. Map positions are for browsing only.
 - Reading connections follow Daunt’s reference flowchart, version 0.9. Each map arrow has a source identifier. The app does not add connections or rank source branches. Missing catalogue stories remain source links instead of being bypassed.
 - Black Library: Horus Heresy Saga is a separate 12-book option in the publisher’s listed order. It stops at Slaves to Darkness. Route selection is saved; finished books and the current reading position are shared.
+- Siege of Terra is a separate publisher option at the end of Explore. It follows Black Library's numbered main series, with all three parts of book 8. The 2019 reference stops at The Solar War; its unresolved endpoint and the twelve-book Saga selection remain unchanged.
 - The first data set is core novels plus a curated set of important supporting stories, not an attempt to encode every short story immediately.
 - Publication order, in-universe chronology, and recommended reading order are separate concepts.
 - The experience should be spoiler-aware and avoid presenting one universal path as objectively correct.

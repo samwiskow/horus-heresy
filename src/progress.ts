@@ -9,7 +9,7 @@ export function parseProgress(value: unknown): Progress {
   return {
     readIds: Array.isArray(saved.readIds) ? [...new Set(saved.readIds.filter((id) => typeof id === 'string' && knownIds.has(id)))] : [],
     currentId: typeof saved.currentId === 'string' && knownIds.has(saved.currentId) ? saved.currentId : 'horus-rising',
-    readingOption: saved.readingOption === 'saga' ? 'saga' : 'reference',
+    readingOption: saved.readingOption === 'saga' || saved.readingOption === 'siege' ? saved.readingOption : 'reference',
   }
 }
 
