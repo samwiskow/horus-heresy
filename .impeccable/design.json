@@ -166,6 +166,11 @@
         "section": "colors"
       },
       {
+        "name": "The Reference Colour Rule",
+        "body": "Copy the reference book plate's fill and outline into a small square on map plates and book lists. Keep faction names visible and reading state explicit. Books absent from the reference have no mark. These colours are source data, not interface tokens or legion and story arc memberships.",
+        "section": "colors"
+      },
+      {
         "name": "The Book Title Rule",
         "body": "Use serif text for book names. Keep controls in sans-serif so actions remain easy to identify.",
         "section": "typography"

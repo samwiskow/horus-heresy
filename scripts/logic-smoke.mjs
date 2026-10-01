@@ -5,13 +5,41 @@ import { App } from '../src/App.tsx'
 import { bookById, books } from '../src/data.ts'
 import { getEdgeRoute, NODE_WIDTH, NODE_HEIGHT } from '../src/map-layout.ts'
 import { getReachableBookIds, getNextSteps } from '../src/logic.ts'
-import { getConnections, reference, referenceBookByNodeId, sagaBookIds, siegeBookIds, siegeBookNumbers } from '../src/reading-options.ts'
+import { getConnections, reference, referenceBookByNodeId, referenceNodeByBookId, sagaBookIds, siegeBookIds, siegeBookNumbers } from '../src/reading-options.ts'
 import { parseProgress, toggleFinished } from '../src/progress.ts'
 
 const run = (name, test) => {
   test()
   console.log(`✓ ${name}`)
 }
+
+run('uses the reference book colours without inventing a legion palette', () => {
+  for (const [id, fill, stroke] of [
+    ['thousand-sons', '#1478A8', '#006EAF'],
+    ['fulgrim', '#FF66FF', '#006EAF'],
+    ['scars', '#CCCCCC', '#CC0000'],
+    ['first-heretic', '#6E3600', 'none'],
+    ['know-no-fear', '#6E3600', 'none'],
+    ['mechanicum', '#4D4D4D', '#006EAF'],
+    ['nemesis', '#FFFFFF', '#000000'],
+  ]) {
+    assert.equal(referenceNodeByBookId[id].fill, fill)
+    assert.equal(referenceNodeByBookId[id].stroke, stroke)
+  }
+  assert.equal(referenceNodeByBookId['end-and-death-iii'], undefined)
+})
+
+run('pairs source colour marks with visible faction labels in the book list', () => {
+  const html = renderToStaticMarkup(createElement(App))
+  for (const book of books.filter((book) => referenceNodeByBookId[book.id])) {
+    const row = html.match(new RegExp(`<li[^>]*data-book-id="${book.id}"[\\s\\S]*?</li>`))?.[0]
+    assert.ok(row, book.title)
+    assert.ok(row.includes('reference-colour-mark'), book.title)
+    assert.ok(row.includes(book.faction.replaceAll('&', '&amp;')), book.title)
+    assert.ok(row.includes(`fill="${referenceNodeByBookId[book.id].fill}"`), book.title)
+    assert.ok(row.includes('aria-hidden="true"'), book.title)
+  }
+})
 
 run('follows the source opening without adding early legion branches', () => {
   assert.deepEqual(getNextSteps('horus-rising', new Set(), 'reference').map((step) => step.book?.id), ['false-gods'])

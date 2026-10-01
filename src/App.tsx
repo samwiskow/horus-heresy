@@ -52,6 +52,7 @@ function StatusMark({ book, readIds, currentId }: { book: Book; readIds: Set<str
 
 function BookNode({ book, selected, dimmed, readIds, currentId, recommended, onSelect }: { book: Book; selected: boolean; dimmed: boolean; readIds: Set<string>; currentId: string; recommended: boolean; onSelect: (book: Book) => void }) {
   const titleLines = splitTitle(book.shortTitle)
+  const colour = referenceNodeByBookId[book.id]
   const status = readIds.has(book.id) ? 'read' : currentId === book.id ? 'current' : recommended ? 'recommended' : ''
   const onKeyDown = (event: KeyboardEvent<SVGGElement>) => {
     if (event.key === 'Enter' || event.key === ' ') {
@@ -71,8 +72,8 @@ function BookNode({ book, selected, dimmed, readIds, currentId, recommended, onS
     >
       {selected && <rect className="node-focus-ring" x="-7" y="-7" width={NODE_WIDTH + 14} height={NODE_HEIGHT + 14} rx="15" />}
       <rect className="node-plate" width={NODE_WIDTH} height={NODE_HEIGHT} rx="12" />
-      <path className="node-notch" d="M 0 12 L 10 0 L 22 0 L 30 12 L 22 24 L 10 24 Z" />
-      <text className="node-faction" x="42" y="17">{book.faction.toUpperCase()}</text>
+      {colour && <rect className="reference-colour-mark" x="16" y="6" width="12" height="12" fill={colour.fill} stroke={colour.stroke} aria-hidden="true" />}
+      <text className="node-faction" x={colour ? 36 : 16} y="17">{book.faction.toUpperCase()}</text>
       {titleLines.map((line, index) => <text className="node-title" key={line} x="16" y={42 + index * 15}>{line}</text>)}
       <text className="node-meta" x="16" y="65">{book.kind} {book.seriesNumber ? `· ${String(book.seriesNumber).padStart(2, '0')}` : ''}</text>
       <StatusMark book={book} readIds={readIds} currentId={currentId} />
@@ -243,7 +244,7 @@ function BookList({ items, selectedId, onSelect, sequence = false, ...actions }:
   const orderedIds = getSequenceBookIds(actions.readingOption)
   return <ol className="book-list">{items.map((book) => <li key={book.id} data-book-id={book.id} className={selectedId === book.id ? 'selected' : ''}>
     <span className="book-number" aria-label={sequence ? `List position ${orderedIds.indexOf(book.id) + 1}` : undefined}>{sequence ? String(orderedIds.indexOf(book.id) + 1).padStart(2, '0') : book.seriesNumber ? String(book.seriesNumber).padStart(2, '0') : '—'}</span>
-    <button className="list-book" aria-pressed={selectedId === book.id} onClick={() => onSelect(book)}><strong>{book.title}</strong><span>{book.kind}{actions.readingOption === 'siege' && siegeBookNumbers[book.id] ? ` · Siege book ${siegeBookNumbers[book.id]}` : ''}</span></button>
+    <button className="list-book" aria-pressed={selectedId === book.id} onClick={() => onSelect(book)}><strong>{referenceNodeByBookId[book.id] && <svg className="reference-colour-mark" width="14" height="14" aria-hidden="true"><rect x="0.5" y="0.5" width="13" height="13" fill={referenceNodeByBookId[book.id].fill} stroke={referenceNodeByBookId[book.id].stroke} /></svg>}{book.title}</strong><span>{book.faction} · {book.kind}{actions.readingOption === 'siege' && siegeBookNumbers[book.id] ? ` · Siege book ${siegeBookNumbers[book.id]}` : ''}</span></button>
     <span className="list-status">{actions.readIds.has(book.id) ? <><Check size={15} />Finished</> : book.id === actions.currentId ? <><BookOpen size={15} />Reading</> : 'Unread'}</span>
     <button className="icon-button" aria-label={`${actions.readIds.has(book.id) ? 'Mark unread' : 'Mark finished'}: ${book.title}`} aria-pressed={actions.readIds.has(book.id)} onClick={() => actions.onRead(book.id)}>{actions.readIds.has(book.id) ? <RotateCcw size={17} /> : <Check size={17} />}</button>
   </li>)}</ol>
@@ -319,7 +320,7 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
       <label className="route-checkbox highlight-checkbox"><input type="checkbox" checked={highlightPaths} onChange={(event) => setHighlightPaths(event.target.checked)} />Highlight next paths</label>
       <label className="select-field view-select"><span>View</span><select aria-label="View" value={mode} onChange={(event) => setMode(event.target.value as MapMode)}><option value="map">Connection map</option><option value="list">Book list</option></select></label>
     </div>
-    <div className="atlas-workspace"><section className="atlas-main" aria-label="Reading map"><div className="map-meta"><span>{visibleBooks.length} books{mode === 'list' && readingOption === 'reference' ? ' · Titles A–Z' : ''}</span><details className="map-key"><summary>How to read the map</summary><div><p><b>Arrow:</b> a connection from the selected source.</p><p>The map includes catalogue books only. Missing stories remain linked in the source steps; arrows never skip them.</p><p>Select a book to trace its paths. Open Book notes when you want more detail. Drag the Connection map, or use Book list. Book positions do not define story arcs or reading order.</p></div></details></div>
+    <div className="atlas-workspace"><section className="atlas-main" aria-label="Reading map"><div className="map-meta"><span>{visibleBooks.length} books{mode === 'list' && readingOption === 'reference' ? ' · Titles A–Z' : ''}</span><details className="map-key"><summary>How to read the map</summary><div><p><b>Arrow:</b> a connection from the selected source.</p><p><b>Colour mark:</b> the book’s colour in Daunt’s reference. Colours are not unique legion or story arc labels. Books absent from the reference have no mark.</p><p>The map includes catalogue books only. Missing stories remain linked in the source steps; arrows never skip them.</p><p>Select a book to trace its paths. Open Book notes when you want more detail. Drag the Connection map, or use Book list. Book positions do not define story arcs or reading order.</p></div></details></div>
       {mode !== 'list' && <div className="next-paths" aria-live="polite"><strong>Selected: {bookById[selectedId].title}</strong>{highlightPaths && (nextPaths.length ? <div>{nextPaths.map((edge) => <button key={edge.to} onClick={() => selectMapBook(bookById[edge.to])}><ArrowRight size={14} /><span>{bookById[edge.to].title}<small>{edge.kind === 'sequence' ? 'Publisher’s listed order' : 'Reference arrow'}</small></span></button>)}</div> : <span>No catalogue paths are visible. Check source steps and filters.</span>)}<button className="text-action path-notes-action" onClick={openNotes}>Book notes <ArrowRight size={15} /></button></div>}
       {selectedSourceSteps.length > 0 && <div className="source-paths"><span>Selected book: steps outside this catalogue</span>{selectedSourceSteps.map((step) => <a key={step.id} href={step.sourceUrl} target="_blank" rel="noreferrer">{step.title} <ArrowUpRight size={13} /></a>)}</div>}
       {visibleBooks.length === 0 ? <div className="empty-state"><h2>No books found</h2><p>Try another title, or clear the filters.</p><button className="quiet-action" onClick={() => { setSearch(''); setRouteOnly(false) }}>Clear filters</button></div> : <>
