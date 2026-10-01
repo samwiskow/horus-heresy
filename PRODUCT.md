@@ -28,7 +28,7 @@ The reader explores a dense flowchart, searches for a book or legion, selects a 
 
 ## Capabilities and Constraints
 
-- Explore is the core exploration surface: browse a book list, search, filter the onward route, inspect books, and highlight source connections on the Connection map. Book list is the default. Reference titles are alphabetical; Saga retains the publisher's listed order.
+- Explore is the core exploration surface: browse a book list, search, filter the onward route, inspect books, and follow source arrows from top to bottom on the Connection map. Book list is the default. Focus connections shows the selected book and its direct incoming and outgoing source links, including catalogue neighbours excluded by filters; turning it off restores the full-map position and zoom. Highlight next paths is independent and enabled by default. Reference titles are alphabetical; Saga retains the publisher's listed order.
 - Colour marks copy the fill and outline from the reference book plates. They appear in the map and book lists beside visible faction names. Books absent from the reference have no mark; colours do not define legion or story arc memberships.
 - No story arc memberships are assigned. The reference uses coloured branches but does not supply named memberships that can be reproduced without interpretation. The app does not infer arcs from colours, factions, or shared arrows. Map positions are for browsing only.
 - Reading connections follow Daunt’s reference flowchart, version 0.9. Each map arrow has a source identifier. The app does not add connections or rank source branches. Missing catalogue stories remain source links instead of being bypassed.

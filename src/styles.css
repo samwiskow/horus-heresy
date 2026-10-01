@@ -187,6 +187,8 @@ main { padding: 0 44px 26px; }
 .map-text-control { min-height: 42px; padding: 0 9px; color: var(--ink); font-size: 11px; }
 .map-text-control:hover { color: var(--accent); }
 .map-hint { position: absolute; bottom: 12px; left: 12px; font-size: 11px; background: var(--sheet); padding: 5px; }
+.map-edge-clearance { fill: none; stroke: var(--sheet); stroke-width: 8; stroke-linejoin: round; }
+.focus-description { color: var(--muted); font-size: 12px; margin: 8px 0 12px; }
 .map-edge { fill: none; stroke: var(--map-edge); stroke-width: 2.2; }
 .map-edge.active { stroke: var(--accent); stroke-width: 3.5; }
 .map-edge.dimmed { opacity: .38; }
@@ -252,7 +254,9 @@ main { padding: 0 44px 26px; }
   .map-fullscreen-close { position: absolute; z-index: 2; display: inline-flex; top: 12px; left: 12px; background: var(--sheet); }
   .map-highlight-mobile { position: absolute; z-index: 2; top: 12px; right: 12px; display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 10px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); font-size: 12px; font-weight: 600; }
   .map-highlight-mobile input { width: 16px; height: 16px; }
-  .mobile-expanded .map-controls { top: 66px; }
+  .map-focus-mobile { top: 66px; }
+  .mobile-expanded .map-controls { top: 120px; }
+  .mobile-expanded .map-axis-label, .mobile-expanded .map-axis { display: none; }
   .mobile-expanded .map-canvas-shell { height: calc(100% - 94px); }
   .map-selected-mobile { position: absolute; bottom: 0; left: 0; right: 0; display: grid; gap: 3px; height: 94px; padding: 6px 12px; border-top: 1px solid var(--line); background: var(--sheet); }
   .map-selected-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
