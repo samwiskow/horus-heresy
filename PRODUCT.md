@@ -16,7 +16,7 @@ The primary user is a Horus Heresy reader using the tool personally while decidi
 
 ## Product Purpose
 
-The product turns the Horus Heresy reading order into an explorable story graph. It should show where the reader is, preserve the branching nature of the fiction, and recommend an explainable next book based on the reader's current book and completed books.
+The product turns the Horus Heresy reading order into an explorable story graph. It should show where the reader is, preserve the branching nature of the fiction, and show source-defined next steps based on the reader's current book and completed books.
 
 ## Positioning
 
@@ -29,7 +29,8 @@ The reader explores a dense flowchart, searches for a book or arc, selects a boo
 ## Capabilities and Constraints
 
 - The story atlas is the core exploration surface: scan the full set of arcs, move through the map, search, filter, inspect books, and highlight a personal route. Arc lanes are the default map view; Campaign map is an alternate view.
-- Recommendations are deterministic and explainable. They distinguish prerequisites, direct continuations, parallel arcs, and optional material.
+- Reading connections follow Daunt’s reference flowchart, version 0.9. Each map arrow has a source identifier. The app does not add connections or rank source branches. Missing catalogue stories remain source links instead of being bypassed.
+- Black Library: Horus Heresy Saga is a separate 12-book option in the publisher’s listed order. It stops at Slaves to Darkness. Route selection is saved; finished books and the current reading position are shared.
 - The first data set is core novels plus a curated set of important supporting stories, not an attempt to encode every short story immediately.
 - Publication order, in-universe chronology, and recommended reading order are separate concepts.
 - The experience should be spoiler-aware and avoid presenting one universal path as objectively correct.
@@ -43,7 +44,8 @@ The approved visual direction is Annotated edition: warm off-white surfaces, cha
 
 - Reference flowchart: https://www.kylebb.com/HH/HHSeriesOrder.svg
 - Reference interactive timeline: https://gaming.kylebb.com/hhtimeline/
-- The references are inspiration and evidence of the desired graph-like reading experience, not authoritative content for every relationship.
+- The flowchart is the authority for the reference option. Its 2 July 2019 source snapshot and two unattached arrow endpoints are recorded under `src/sources/reference-flowchart.json`.
+- Official Saga selection: https://www.warhammer-community.com/en-gb/articles/17oswfuf/world-championships-preview-experience-the-greatest-hits-of-the-horus-heresy-saga-in-a-new-curated-series/
 
 ## Product Principles
 

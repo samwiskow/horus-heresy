@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { ArrowUpRight, BookOpen, Check, Download, Map, Minus, Plus, RotateCcw, Search, Target, X, ArrowRight, List } from 'lucide-react'
-import { arcMeta, bookById, books, connections, type ArcId, type Book, type Connection } from './data'
-import { toggleFinished } from './progress'
-import { getReachableBookIds, getRecommendations } from './logic'
+import { arcMeta, bookById, books, type ArcId, type Book, type Connection } from './data'
+import { parseProgress, toggleFinished, type Progress } from './progress'
+import { getConnections, readingOptions, referenceNodeByBookId, sagaBookIds, type ReadingOption } from './reading-options'
+import { getReachableBookIds, getNextSteps } from './logic'
 
 type View = 'map' | 'atlas' | 'library'
 type MapMode = 'reference' | 'lanes' | 'tactical'
-type Progress = { readIds: string[]; currentId: string }
 
 const STORAGE_KEY = 'heresy-pathfinder-progress'
 const NODE_WIDTH = 180
@@ -21,7 +21,6 @@ const FLOW_EDGE_BAND_GAP = 24
 const FLOW_CROSS_CHANNEL_GAP = 10
 const FLOW_CROSS_TRACK_GAP = 22
 const FLOW_EDGE_CURVE_THRESHOLD = 96
-const knownBookIds = new Set(books.map((book) => book.id))
 
 type FlowPosition = { x: number; y: number }
 const FLOW_LEFT = 220
@@ -39,7 +38,7 @@ const flowRows: FlowRow[] = Object.entries(arcMeta).map(([id, meta], index) => (
   colour: meta.colour,
 }))
 
-function buildFlowLayout(visibleBooks?: Book[]): FlowLayout {
+function buildFlowLayout(visibleBooks: Book[], connections: Connection[]): FlowLayout {
   const positions: Record<string, FlowPosition> = {}
   let maxBooksInRow = 0
   const visibleIds = visibleBooks ? new Set(visibleBooks.map((book) => book.id)) : null
@@ -48,7 +47,7 @@ function buildFlowLayout(visibleBooks?: Book[]): FlowLayout {
     y: FLOW_TOP + index * FLOW_ROW_GAP,
   }))
   rows.forEach((row) => {
-    const arcBooks = orderFlowBooks(books.filter((book) => book.arc === row.id && (!visibleIds || visibleIds.has(book.id))))
+    const arcBooks = orderFlowBooks(visibleBooks.filter((book) => book.arc === row.id), connections)
     maxBooksInRow = Math.max(maxBooksInRow, arcBooks.length)
     arcBooks.forEach((book, index) => {
       positions[book.id] = { x: FLOW_LEFT + index * FLOW_X_STEP, y: row.y - FLOW_NODE_HEIGHT / 2 }
@@ -62,24 +61,18 @@ function buildFlowLayout(visibleBooks?: Book[]): FlowLayout {
   }
 }
 
-function isDirectionalConnection(kind: Connection['kind']) {
-  return kind === 'sequel' || kind === 'recommended' || kind === 'prerequisite'
-}
-
 function isPrimaryConnection(kind: Connection['kind']) {
-  return kind === 'sequel'
+  return kind === 'sequence'
 }
 
 function flowEdgeBandOffset(kind: Connection['kind']) {
-  if (isPrimaryConnection(kind)) return 0
-  if (kind === 'recommended' || kind === 'prerequisite') return -FLOW_EDGE_BAND_GAP
-  return FLOW_EDGE_BAND_GAP
+  return isPrimaryConnection(kind) ? 0 : -FLOW_EDGE_BAND_GAP
 }
 
-function orderFlowBooks(arcBooks: Book[]) {
+function orderFlowBooks(arcBooks: Book[], connections: Connection[]) {
   const ordered = [...arcBooks]
   const allowedIds = new Set(ordered.map((book) => book.id))
-  const directionalEdges = connections.filter((edge) => isDirectionalConnection(edge.kind) && allowedIds.has(edge.from) && allowedIds.has(edge.to))
+  const directionalEdges = connections.filter((edge) => allowedIds.has(edge.from) && allowedIds.has(edge.to))
   directionalEdges.forEach((edge) => {
     const fromIndex = ordered.findIndex((book) => book.id === edge.from)
     const toIndex = ordered.findIndex((book) => book.id === edge.to)
@@ -93,18 +86,10 @@ function orderFlowBooks(arcBooks: Book[]) {
 
 function loadProgress(): Progress {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '') as Partial<Progress>
-    const readIds = Array.isArray(saved.readIds)
-      ? [...new Set(saved.readIds.filter((id): id is string => typeof id === 'string' && knownBookIds.has(id)))]
-      : []
-    const currentId = typeof saved.currentId === 'string' && knownBookIds.has(saved.currentId)
-      ? saved.currentId
-      : 'horus-rising'
-    if (Array.isArray(saved.readIds)) return { currentId, readIds }
+    return parseProgress(JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'))
   } catch {
-    // First run or malformed local storage should look like a clean campaign.
+    return parseProgress(null)
   }
-  return { currentId: 'horus-rising', readIds: [] }
 }
 
 function splitTitle(title: string) {
@@ -199,7 +184,7 @@ function fitCampaign(visibleBooks: Book[]) {
 }
 
 function MapCanvas({
-  selectedId, currentId, readIds, visibleBooks, highlightPaths, recommendedIds, onSelect, focusRevision,
+  selectedId, currentId, readIds, visibleBooks, highlightPaths, recommendedIds, onSelect, focusRevision, connections,
 }: {
   selectedId: string | null
   currentId: string
@@ -208,6 +193,7 @@ function MapCanvas({
   highlightPaths: boolean
   focusRevision: number
   recommendedIds: Set<string>
+  connections: Connection[]
   onSelect: (book: Book) => void
 }) {
   const [view, setView] = useState(() => fitCampaign(visibleBooks))
@@ -287,7 +273,7 @@ function MapCanvas({
             const to = bookById[edge.to]
             const active = edge.from === focusId
             const dimmed = Boolean(focusId) && !active
-            return <path key={`${edge.from}-${edge.to}`} className={`map-edge ${active ? 'active' : ''} ${dimmed ? 'dimmed' : ''} ${edge.kind}`} d={edgePath(from, to)} markerEnd={isDirectionalConnection(edge.kind) ? `url(#${active ? 'arrowhead-active' : 'arrowhead'})` : undefined} />
+            return <path key={`${edge.from}-${edge.to}`} className={`map-edge ${active ? 'active' : ''} ${dimmed ? 'dimmed' : ''} ${edge.kind}`} d={edgePath(from, to)} markerEnd={`url(#${active ? 'arrowhead-active' : 'arrowhead'})`} />
           })}
           {visibleBooks.map((book) => <BookNode key={book.id} book={book} selected={selectedId === book.id} dimmed={Boolean(focusId) && !focusedBookIds.has(book.id)} readIds={readIds} currentId={currentId} recommended={recommendedIds.has(book.id)} onSelect={onSelect} />)}
         </g>
@@ -406,7 +392,7 @@ function FlowBookNode({ book, position, mode, selected, dimmed, readIds, current
 }
 
 function FlowMapCanvas({
-  mode, selectedId, currentId, readIds, visibleBooks, highlightPaths, recommendedIds, onSelect,
+  mode, selectedId, currentId, readIds, visibleBooks, highlightPaths, recommendedIds, onSelect, connections,
 }: {
   mode: Exclude<MapMode, 'tactical'>
   selectedId: string | null
@@ -415,9 +401,10 @@ function FlowMapCanvas({
   visibleBooks: Book[]
   highlightPaths: boolean
   recommendedIds: Set<string>
+  connections: Connection[]
   onSelect: (book: Book) => void
 }) {
-  const { positions, width: flowWidth, height: flowHeight, rows } = buildFlowLayout(visibleBooks)
+  const { positions, width: flowWidth, height: flowHeight, rows } = buildFlowLayout(visibleBooks, connections)
   const shellRef = useRef<HTMLDivElement>(null)
   const overviewWindowRef = useRef<HTMLSpanElement>(null)
   useEffect(() => {
@@ -538,9 +525,7 @@ function FlowMapCanvas({
             if (!from || !to) return null
             const active = edge.from === focusId
             const dimmed = Boolean(focusId) && !active
-            const marker = isDirectionalConnection(edge.kind)
-              ? `url(#${active ? `flow-arrow-active-${mode}` : flowEdgeMarkerId(mode, bookById[edge.from].arc, edge.kind === 'sequel')})`
-              : undefined
+            const marker = `url(#${active ? `flow-arrow-active-${mode}` : flowEdgeMarkerId(mode, bookById[edge.from].arc, edge.kind === 'sequence')})`
             return <path key={`${edge.from}-${edge.to}`} className={`flow-edge ${active ? 'active' : ''} ${dimmed ? 'dimmed' : ''} ${edge.kind}`} d={flowEdgePath(from, to, edgeRoutes.get(`${edge.from}:${edge.to}`) || { sourceOffset: 0, targetOffset: 0, channelOffset: 0 })} markerEnd={marker} />
           })}
         </g>
@@ -570,7 +555,7 @@ function FlowMapCanvas({
 }
 
 
-type BookActions = { readIds: Set<string>; currentId: string; onRead: (id: string) => void; onCurrent: (id: string) => void }
+type BookActions = { readingOption: ReadingOption; readIds: Set<string>; currentId: string; onRead: (id: string) => void; onCurrent: (id: string) => void }
 
 function ReadingActions({ book, readIds, currentId, onRead, onCurrent }: BookActions & { book: Book }) {
   return <div className="book-actions">
@@ -580,9 +565,12 @@ function ReadingActions({ book, readIds, currentId, onRead, onCurrent }: BookAct
 }
 
 function BookNotes({ book, onSelect, onClose, ...actions }: BookActions & { book: Book; onSelect: (book: Book) => void; onClose: () => void }) {
-  const incoming = connections.filter((edge) => edge.to === book.id && isDirectionalConnection(edge.kind))
+  const connections = getConnections(actions.readingOption)
+  const source = readingOptions[actions.readingOption]
+  const sourceSteps = getNextSteps(book.id, new Set(), actions.readingOption)
+  const incoming = connections.filter((edge) => edge.to === book.id)
   const outgoing = connections.filter((edge) => edge.from === book.id)
-  const labels: Record<Connection['kind'], string> = { sequel: 'Direct continuation', recommended: 'Suggested route', prerequisite: 'Read before', parallel: 'Parallel story', optional: 'Optional story' }
+  const labels = { reference: 'Reference arrow', sequence: 'Publisher’s listed order' }
   return <aside id="book-notes" className="book-notes" tabIndex={-1} aria-label="Book notes">
     <div className="notes-heading"><h2>Book notes</h2><IconButton label="Close book notes" onClick={onClose}><X size={18} /></IconButton></div>
     <div className="book-reference">{book.seriesNumber ? `Book ${String(book.seriesNumber).padStart(2, '0')}` : 'Supporting story'} <span>{book.kind}</span></div>
@@ -590,26 +578,27 @@ function BookNotes({ book, onSelect, onClose, ...actions }: BookActions & { book
     <p className="faction-name">{book.faction}</p>
     <p className="book-status">{actions.readIds.has(book.id) ? <Check size={15} /> : <BookOpen size={15} />}{actions.readIds.has(book.id) ? 'Finished' : book.id === actions.currentId ? 'Currently reading' : 'Unread'}</p>
     <ReadingActions book={book} {...actions} />
-    <details className="story-details" key={book.id}><summary>Show story notes <span>{book.spoilerLevel} spoilers</span></summary><p>{book.summary}</p><p>{book.reason}</p></details>
-    {incoming.length > 0 && <section className="connection-list"><h4>Before this book</h4>{incoming.map((edge) => <button key={edge.from} onClick={() => onSelect(bookById[edge.from])}><span>{bookById[edge.from].title}<small>{edge.kind === 'prerequisite' ? 'Prerequisite' : labels[edge.kind]}</small></span><ArrowRight size={15} /></button>)}</section>}
+    <details className="story-details" key={book.id}><summary>Show story notes <span>{book.spoilerLevel} spoilers</span></summary><p>{book.summary}</p></details>
+    {incoming.length > 0 && <section className="connection-list"><h4>{actions.readingOption === 'saga' ? 'Earlier in the Saga list' : 'Incoming source arrows'}</h4>{incoming.map((edge) => <button key={edge.from} onClick={() => onSelect(bookById[edge.from])}><span>{bookById[edge.from].title}<small>{labels[edge.kind]}</small></span><ArrowRight size={15} /></button>)}</section>}
     {outgoing.length > 0 && <section className="connection-list"><h4>Where the story leads</h4>{outgoing.map((edge) => <button key={edge.to} onClick={() => onSelect(bookById[edge.to])}><span>{bookById[edge.to].title}<small>{labels[edge.kind]}</small></span><ArrowRight size={15} /></button>)}</section>}
-    <p className="curation-note">A curated reading guide. Connections suggest a route; they do not define one official order.</p>
+    {sourceSteps.some((step) => !step.book) && <section className="connection-list"><h4>Steps in the original flowchart</h4>{sourceSteps.filter((step) => !step.book).map((step) => <a key={step.id} href={step.sourceUrl} target="_blank" rel="noreferrer">{step.title} <ArrowUpRight size={13} /></a>)}</section>}
+    <p className="curation-note">Connections follow <a href={source.sourceUrl} target="_blank" rel="noreferrer">{source.label}</a>. Missing steps are not joined across.</p>
   </aside>
 }
 
-function BookList({ items, selectedId, onSelect, ...actions }: BookActions & { items: Book[]; selectedId: string; onSelect: (book: Book) => void }) {
+function BookList({ items, selectedId, onSelect, sequence = false, ...actions }: BookActions & { items: Book[]; selectedId: string; onSelect: (book: Book) => void; sequence?: boolean }) {
   return <ol className="book-list">{items.map((book) => <li key={book.id} className={selectedId === book.id ? 'selected' : ''}>
-    <span className="book-number">{book.seriesNumber ? String(book.seriesNumber).padStart(2, '0') : '—'}</span>
+    <span className="book-number" aria-label={sequence ? `Saga position ${sagaBookIds.indexOf(book.id) + 1}` : undefined}>{sequence ? String(sagaBookIds.indexOf(book.id) + 1).padStart(2, '0') : book.seriesNumber ? String(book.seriesNumber).padStart(2, '0') : '—'}</span>
     <button className="list-book" aria-pressed={selectedId === book.id} onClick={() => onSelect(book)}><strong>{book.title}</strong><span>{arcMeta[book.arc].label}</span></button>
     <span className="list-status">{actions.readIds.has(book.id) ? <><Check size={15} />Finished</> : book.id === actions.currentId ? <><BookOpen size={15} />Reading</> : 'Unread'}</span>
     <button className="icon-button" aria-label={`${actions.readIds.has(book.id) ? 'Mark unread' : 'Mark finished'}: ${book.title}`} aria-pressed={actions.readIds.has(book.id)} onClick={() => actions.onRead(book.id)}>{actions.readIds.has(book.id) ? <RotateCcw size={17} /> : <Check size={17} />}</button>
   </li>)}</ol>
 }
 
-function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect }: BookActions & { selectedId: string; onSelect: (book: Book) => void }) {
+function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, readingOption, onOption }: BookActions & { selectedId: string; onSelect: (book: Book) => void; onOption: (option: ReadingOption) => void }) {
   const [search, setSearch] = useState('')
   const [arcFilter, setArcFilter] = useState<ArcId | 'all'>('all')
-  const [mode, setMode] = useState<MapMode | 'list'>('lanes')
+  const [mode, setMode] = useState<MapMode | 'list'>(readingOption === 'saga' ? 'list' : 'lanes')
   const [routeOnly, setRouteOnly] = useState(false)
   const [highlightPaths, setHighlightPaths] = useState(true)
   const [fullMobileMap, setFullMobileMap] = useState(false)
@@ -619,11 +608,16 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect }
   const mobileMapToggleRef = useRef<HTMLButtonElement>(null)
   const mapCloseRef = useRef<HTMLButtonElement>(null)
   const notesTrigger = useRef<HTMLElement | null>(null)
-  const recommendations = getRecommendations(currentId, readIds)
-  const recommended = recommendations[0]
-  const routeIds = getReachableBookIds(currentId, readIds)
-  const actions = { currentId, readIds, onRead, onCurrent }
-  const visibleBooks = books.filter((book) => (!search || `${book.title} ${book.faction} ${arcMeta[book.arc].label}`.toLowerCase().includes(search.toLowerCase())) && (arcFilter === 'all' || book.arc === arcFilter) && (!routeOnly || routeIds.has(book.id) || book.id === currentId))
+  const source = readingOptions[readingOption]
+  const connections = getConnections(readingOption)
+  const nextSteps = getNextSteps(currentId, readIds, readingOption)
+  const recommended = nextSteps.length === 1 && nextSteps[0].book ? nextSteps[0] : undefined
+  const recommendations = nextSteps.filter((step) => step.book)
+  const routeIds = getReachableBookIds(currentId, readIds, readingOption)
+  const actions = { currentId, readIds, onRead, onCurrent, readingOption }
+  const optionBooks = readingOption === 'saga' ? sagaBookIds.map((id) => bookById[id]) : books.filter((book) => referenceNodeByBookId[book.id] || book.id === currentId)
+  const selectedSourceSteps = getNextSteps(selectedId, new Set(), readingOption).filter((step) => !step.book)
+  const visibleBooks = optionBooks.filter((book) => (!search || `${book.title} ${book.faction} ${arcMeta[book.arc].label}`.toLowerCase().includes(search.toLowerCase())) && (arcFilter === 'all' || book.arc === arcFilter) && (!routeOnly || routeIds.has(book.id) || book.id === currentId))
   const visibleIds = new Set(visibleBooks.map((book) => book.id))
   const nextPaths = connections.filter((edge) => edge.from === selectedId && visibleIds.has(edge.to))
   const openNotes = () => {
@@ -665,10 +659,14 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect }
     }
   }, [focusRevision, mode, selectedId, currentId, fullMobileMap])
   return <>
+    <section className="reading-option" aria-label="Reading option">
+      <label className="select-field"><span>Reading option</span><select aria-label="Reading option" value={readingOption} onChange={(event) => { onOption(event.target.value as ReadingOption); setSearch(''); setArcFilter('all'); setRouteOnly(false); setMode(event.target.value === 'saga' ? 'list' : 'lanes'); setFullMobileMap(false); setNotesOpen(false) }}>{Object.entries(readingOptions).map(([id, option]) => <option key={id} value={id}>{option.label}</option>)}</select></label>
+      <p>{source.description} <a href={source.sourceUrl} target="_blank" rel="noreferrer">View source <ArrowUpRight size={13} /></a></p>
+      {readingOption === 'saga' && <span className="option-progress">{sagaBookIds.filter((id) => readIds.has(id)).length} / 12 Saga books finished</span>}
+    </section>
     <section className="reading-desk" aria-label="Your reading route">
       <div className="current-reading"><div className="section-label"><BookOpen size={17} /><h2>{readIds.has(currentId) ? 'Last finished' : 'Reading now'}</h2></div><button className="book-heading" onClick={() => revealBook(bookById[currentId])}>{bookById[currentId].title}</button><p>{arcMeta[bookById[currentId].arc].label}</p><button className="text-action" onClick={() => onRead(currentId)}>{readIds.has(currentId) ? <RotateCcw size={15} /> : <Check size={15} />}{readIds.has(currentId) ? 'Mark unread' : 'Mark finished'}</button></div>
-      <div className="next-reading"><div className="section-label"><ArrowRight size={17} /><h2>Read next</h2></div>{recommended ? <><button className="book-heading" onClick={() => revealBook(recommended.book)}>{recommended.book.title}</button><p>{recommended.explanation}</p><div className="next-actions"><button className="primary-action" onClick={() => { onCurrent(recommended.book.id); revealBook(recommended.book) }}>Start reading <ArrowRight size={16} /></button><button className="text-action" onClick={() => { if (mode === 'list') setMode('lanes'); setFullMobileMap(true); revealBook(recommended.book, false); requestAnimationFrame(() => mapRef.current?.scrollIntoView({ block: 'center' })) }}>Show on map</button></div></> : <><h3>Every book finished.</h3><p>Explore the map to revisit a favourite.</p></>}</div>
-      {recommendations.length > 1 && <div className="other-routes"><h2>Other routes</h2>{recommendations.slice(1).map((item) => <button key={item.book.id} onClick={() => revealBook(item.book)}>{item.book.title}<ArrowRight size={15} /></button>)}</div>}
+      <div className="next-reading"><div className="section-label"><ArrowRight size={17} /><h2>{readingOption === 'reference' ? 'Next source steps' : 'Read next'}</h2></div>{recommended?.book ? <><button className="book-heading" onClick={() => revealBook(recommended.book!)}>{recommended.title}</button><p>{recommended.explanation}</p><div className="next-actions"><button className="primary-action" onClick={() => { onCurrent(recommended.book!.id); revealBook(recommended.book!) }}>Start reading <ArrowRight size={16} /></button><button className="text-action" onClick={() => { if (mode === 'list') setMode('lanes'); setFullMobileMap(true); revealBook(recommended.book!, false); requestAnimationFrame(() => mapRef.current?.scrollIntoView({ block: 'center' })) }}>Show on map</button></div></> : nextSteps.length ? <><p>Choose a source path. These choices have no app ranking.</p><ul className="source-steps">{nextSteps.map((step) => <li key={step.id}>{step.book ? <button className="text-action" onClick={() => revealBook(step.book!)}>{step.title}<ArrowRight size={14} /></button> : <a href={step.sourceUrl} target="_blank" rel="noreferrer">{step.title}<ArrowUpRight size={14} /><small>{step.explanation}</small></a>}</li>)}</ul></> : <><h3>{readingOption === 'saga' ? 'End of the Saga selection.' : 'No next step is recorded here.'}</h3><p>{readingOption === 'saga' ? 'This selection stops at Slaves to Darkness. Any earlier unfinished books remain in the list below.' : 'Check the original flowchart for its full route and coverage.'}</p><a className="text-action" href={source.sourceUrl} target="_blank" rel="noreferrer">View source <ArrowUpRight size={14} /></a></>}</div>
     </section>
     <div className="explore-heading"><div><h1>The story atlas<span>.</span></h1><p>Follow a story. Find where it connects.</p></div><button className="text-action" onClick={() => revealBook(bookById[currentId], false)}><Target size={16} />Return to my book</button></div>
     <div className="atlas-toolbar">
@@ -678,12 +676,13 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect }
       <label className="route-checkbox highlight-checkbox"><input type="checkbox" checked={highlightPaths} onChange={(event) => setHighlightPaths(event.target.checked)} />Highlight next paths</label>
       <label className="select-field view-select"><span>View</span><select aria-label="View" value={mode} onChange={(event) => setMode(event.target.value as MapMode | 'list')}><option value="lanes">Arc lanes</option><option value="reference">Reference flow</option><option value="tactical">Campaign map</option><option value="list">Book list</option></select></label>
     </div>
-    <div className="atlas-workspace"><section className="atlas-main" aria-label="Reading map"><div className="map-meta"><span>{visibleBooks.length} books · {arcFilter === 'all' ? `${new Set(visibleBooks.map((book) => book.arc)).size} story arcs` : arcMeta[arcFilter].label}</span><details className="map-key"><summary>How to read the map</summary><div><p><b>Arrow:</b> a reading direction.</p><p><b>Bold line:</b> direct continuation.</p><p><b>Dashed line:</b> related or optional; no required order.</p><p>Select a book to trace its paths. Open Book notes when you want more detail. Scroll inside Arc lanes, or drag the Campaign map. Use Book list for a linear view.</p></div></details></div>
-      {mode !== 'list' && <div className="next-paths" aria-live="polite"><strong>Selected: {bookById[selectedId].title}</strong>{highlightPaths && (nextPaths.length ? <div>{nextPaths.map((edge) => <button key={edge.to} onClick={() => selectMapBook(bookById[edge.to])}><ArrowRight size={14} /><span>{bookById[edge.to].title}<small>{edge.kind === 'sequel' ? 'Direct continuation' : edge.kind === 'parallel' ? 'Parallel story' : edge.kind === 'optional' ? 'Optional' : edge.kind === 'prerequisite' ? 'Prerequisite' : 'Suggested route'}</small></span></button>)}</div> : <span>No visible onward paths. Clear filters to see more books.</span>)}<button className="text-action path-notes-action" onClick={openNotes}>Book notes <ArrowRight size={15} /></button></div>}
+    <div className="atlas-workspace"><section className="atlas-main" aria-label="Reading map"><div className="map-meta"><span>{visibleBooks.length} books · {arcFilter === 'all' ? `${new Set(visibleBooks.map((book) => book.arc)).size} story arcs` : arcMeta[arcFilter].label}</span><details className="map-key"><summary>How to read the map</summary><div><p><b>Arrow:</b> a connection from the selected source.</p><p>The map includes catalogue books only. Missing stories remain linked in the source steps; arrows never skip them.</p><p>Select a book to trace its paths. Open Book notes when you want more detail. Scroll inside Arc lanes, or drag the Campaign map. Use Book list for a linear view.</p></div></details></div>
+      {mode !== 'list' && <div className="next-paths" aria-live="polite"><strong>Selected: {bookById[selectedId].title}</strong>{highlightPaths && (nextPaths.length ? <div>{nextPaths.map((edge) => <button key={edge.to} onClick={() => selectMapBook(bookById[edge.to])}><ArrowRight size={14} /><span>{bookById[edge.to].title}<small>{edge.kind === 'sequence' ? 'Publisher’s listed order' : 'Reference arrow'}</small></span></button>)}</div> : <span>No catalogue paths are visible. Check source steps and filters.</span>)}<button className="text-action path-notes-action" onClick={openNotes}>Book notes <ArrowRight size={15} /></button></div>}
+      {selectedSourceSteps.length > 0 && <div className="source-paths"><span>Selected book: steps outside this catalogue</span>{selectedSourceSteps.map((step) => <a key={step.id} href={step.sourceUrl} target="_blank" rel="noreferrer">{step.title} <ArrowUpRight size={13} /></a>)}</div>}
       {visibleBooks.length === 0 ? <div className="empty-state"><h2>No books found</h2><p>Try another title, or clear the filters.</p><button className="quiet-action" onClick={() => { setSearch(''); setArcFilter('all'); setRouteOnly(false) }}>Clear filters</button></div> : <>
         <button ref={mobileMapToggleRef} className="mobile-map-toggle text-action" aria-expanded={fullMobileMap} onClick={() => { if (mode === 'list') setMode('lanes'); setFullMobileMap(!fullMobileMap) }}>{fullMobileMap ? <List size={17} /> : <Map size={17} />}{fullMobileMap ? 'Show book list' : 'Explore full map'}</button>
-        {mode !== 'list' && <div ref={mapRef} className={`atlas-map ${fullMobileMap ? 'mobile-expanded' : ''}`}><button ref={mapCloseRef} className="map-fullscreen-close quiet-action" onClick={closeFullMobileMap}><List size={17} />Show book list</button><label className="map-highlight-mobile"><input type="checkbox" checked={highlightPaths} onChange={(event) => setHighlightPaths(event.target.checked)} />Next paths</label>{mode === 'tactical' ? <MapCanvas focusRevision={focusRevision} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} highlightPaths={highlightPaths} recommendedIds={new Set(recommendations.map((item) => item.book.id))} onSelect={selectMapBook} /> : <FlowMapCanvas mode={mode} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} highlightPaths={highlightPaths} recommendedIds={new Set(recommendations.map((item) => item.book.id))} onSelect={selectMapBook} />}<div className="map-selected-mobile"><div className="map-selected-heading"><span><small>Selected book</small><strong>{bookById[selectedId].title}</strong></span><button className="quiet-action" onClick={openNotes}>Book notes</button></div><div className="map-selected-branches">{highlightPaths ? <><small>Next</small>{nextPaths.length ? nextPaths.map((edge) => <button key={edge.to} onClick={() => selectMapBook(bookById[edge.to])}><ArrowRight size={13} />{bookById[edge.to].title}</button>) : <span>No visible next path</span>}</> : <span>Next paths hidden</span>}</div></div></div>}
-        <div className={`${mode === 'list' ? 'list-view' : 'mobile-book-list'} ${fullMobileMap ? 'mobile-hidden' : ''}`}><BookList items={visibleBooks} selectedId={selectedId} onSelect={selectListBook} {...actions} /></div>
+        {mode !== 'list' && <div ref={mapRef} className={`atlas-map ${fullMobileMap ? 'mobile-expanded' : ''}`}><button ref={mapCloseRef} className="map-fullscreen-close quiet-action" onClick={closeFullMobileMap}><List size={17} />Show book list</button><label className="map-highlight-mobile"><input type="checkbox" checked={highlightPaths} onChange={(event) => setHighlightPaths(event.target.checked)} />Next paths</label>{mode === 'tactical' ? <MapCanvas focusRevision={focusRevision} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} highlightPaths={highlightPaths} connections={connections} recommendedIds={new Set(recommendations.map((item) => item.book!.id))} onSelect={selectMapBook} /> : <FlowMapCanvas mode={mode} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={visibleBooks} highlightPaths={highlightPaths} connections={connections} recommendedIds={new Set(recommendations.map((item) => item.book!.id))} onSelect={selectMapBook} />}<div className="map-selected-mobile"><div className="map-selected-heading"><span><small>Selected book</small><strong>{bookById[selectedId].title}</strong></span><button className="quiet-action" onClick={openNotes}>Book notes</button></div><div className="map-selected-branches">{highlightPaths ? <><small>Next</small>{nextPaths.length ? nextPaths.map((edge) => <button key={edge.to} onClick={() => selectMapBook(bookById[edge.to])}><ArrowRight size={13} />{bookById[edge.to].title}</button>) : <span>No visible next path</span>}</> : <span>Next paths hidden</span>}</div></div></div>}
+        <div className={`${mode === 'list' ? 'list-view' : 'mobile-book-list'} ${fullMobileMap ? 'mobile-hidden' : ''}`}><BookList sequence={readingOption === 'saga'} items={visibleBooks} selectedId={selectedId} onSelect={selectListBook} {...actions} /></div>
       </>}
       <div className="map-caption"><span><span className="status-sample selected" />Selected</span><span><BookOpen size={13} />Reading</span><span><Check size={13} />Finished</span><span className="caption-note">Select a book to trace its paths.</span></div>
     </section>{notesOpen && <BookNotes book={bookById[selectedId]} onSelect={revealBook} onClose={closeNotes} {...actions} />}</div>
@@ -727,11 +726,12 @@ export function App() {
   useEffect(() => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(progress)); setStorageError(false) } catch { setStorageError(true) } }, [progress])
   const onRead = (id: string) => { setUndo(progress); setProgress(toggleFinished(progress, id)); setNotice(`${bookById[id].title} marked ${readIds.has(id) ? 'unread' : 'finished'}.`) }
   const onCurrent = (id: string) => { setUndo(progress); setProgress({ ...progress, currentId: id }); setSelectedId(id); setNotice(`Now reading ${bookById[id].title}.`) }
+  const onOption = (option: ReadingOption) => { setProgress({ ...progress, readingOption: option }); setNotice(`Reading option: ${readingOptions[option].label}.`) }
   const onSelect = (book: Book) => { setSelectedId(book.id); setNotice(`Selected: ${book.title}.`) }
   const exportRoute = () => { const url = URL.createObjectURL(new Blob([JSON.stringify(progress, null, 2)], { type: 'application/json' })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'heresy-pathfinder-route.json'; anchor.click(); URL.revokeObjectURL(url); setNotice('Reading progress exported.') }
   return <div className="app-shell"><a className="skip-link" href="#main">Skip to content</a><header className="topbar"><button className="brand-lockup" onClick={() => setView('map')} aria-label="Pathfinder home"><BookOpen size={25} strokeWidth={1.3} /><span>Pathfinder<small>A Horus Heresy reading companion</small></span></button><nav className="primary-nav" aria-label="Primary navigation">{([['map', 'Explore'], ['atlas', 'Story arcs'], ['library', 'My library']] as const).map(([id, label]) => <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav><div className="header-progress"><span>{readIds.size} / {books.length} finished</span><progress aria-label="Books finished" value={readIds.size} max={books.length} /></div></header>
-    <main id="main">{storageError && <div className="storage-error" role="alert">Your browser could not save progress. Keep this page open and <button onClick={exportRoute}>export your progress</button>.</div>}{view === 'map' ? <Explore selectedId={selectedId} onSelect={onSelect} currentId={progress.currentId} readIds={readIds} onRead={onRead} onCurrent={onCurrent} /> : <Collection key={view} view={view} selectedId={selectedId} onSelect={onSelect} currentId={progress.currentId} readIds={readIds} onRead={onRead} onCurrent={onCurrent} />}
-      <div className="notice-bar"><span role="status" aria-live="polite">{notice || 'Progress is saved on this device.'}</span>{undo && <button className="text-action" onClick={() => { setProgress(undo); setUndo(null); setNotice('Last progress change undone.') }}>Undo</button>}</div>
-      {view === 'library' && <div className="library-tools"><button className="quiet-action" onClick={exportRoute}><Download size={16} />Export progress</button>{confirmReset ? <div className="reset-confirm"><span>Clear all reading progress?</span><button className="quiet-action" onClick={() => { setUndo(progress); setProgress({ readIds: [], currentId: 'horus-rising' }); setSelectedId('horus-rising'); setConfirmReset(false); setNotice('Progress cleared. You can undo this change.') }}>Clear progress</button><button className="text-action" onClick={() => setConfirmReset(false)}>Cancel</button></div> : <button className="text-action" onClick={() => setConfirmReset(true)}>Reset progress</button>}</div>}
-    </main><footer className="site-footer"><span>Pathfinder <span className="footer-divider">/</span> A curated, unofficial guide</span><div><a href="https://www.kylebb.com/HH/HHSeriesOrder.svg" target="_blank" rel="noreferrer">Reference flowchart <ArrowUpRight size={13} /></a><a href="https://gaming.kylebb.com/hhtimeline/" target="_blank" rel="noreferrer">Reading timeline <ArrowUpRight size={13} /></a></div></footer></div>
+    <main id="main">{storageError && <div className="storage-error" role="alert">Your browser could not save progress. Keep this page open and <button onClick={exportRoute}>export your progress</button>.</div>}{view === 'map' ? <Explore readingOption={progress.readingOption} onOption={onOption} selectedId={selectedId} onSelect={onSelect} currentId={progress.currentId} readIds={readIds} onRead={onRead} onCurrent={onCurrent} /> : <Collection readingOption={progress.readingOption} key={view} view={view} selectedId={selectedId} onSelect={onSelect} currentId={progress.currentId} readIds={readIds} onRead={onRead} onCurrent={onCurrent} />}
+      <div className="notice-bar"><span role="status" aria-live="polite">{notice || 'Progress is saved on this device.'}</span>{undo && <button className="text-action" onClick={() => { setProgress({ ...undo, readingOption: progress.readingOption }); setUndo(null); setNotice('Last progress change undone.') }}>Undo</button>}</div>
+      {view === 'library' && <div className="library-tools"><button className="quiet-action" onClick={exportRoute}><Download size={16} />Export progress</button>{confirmReset ? <div className="reset-confirm"><span>Clear all reading progress?</span><button className="quiet-action" onClick={() => { setUndo(progress); setProgress({ ...progress, readIds: [], currentId: 'horus-rising' }); setSelectedId('horus-rising'); setConfirmReset(false); setNotice('Progress cleared. You can undo this change.') }}>Clear progress</button><button className="text-action" onClick={() => setConfirmReset(false)}>Cancel</button></div> : <button className="text-action" onClick={() => setConfirmReset(true)}>Reset progress</button>}</div>}
+    </main><footer className="site-footer"><span>Pathfinder <span className="footer-divider">/</span> An unofficial companion to source reading guides</span><div><a href="https://www.kylebb.com/HH/HHSeriesOrder.svg" target="_blank" rel="noreferrer">Reference flowchart <ArrowUpRight size={13} /></a><a href="https://gaming.kylebb.com/hhtimeline/" target="_blank" rel="noreferrer">Reading timeline <ArrowUpRight size={13} /></a></div></footer></div>
 }

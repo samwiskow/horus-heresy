@@ -1,49 +1,58 @@
-import { bookById, books, connections, type Book } from './data'
+import { bookById, type Book } from './data'
+import { readingOptions, reference, referenceBookByNodeId, referenceNodeByBookId, sagaBookIds, type ReadingOption } from './reading-options'
 
-export type Recommendation = {
-  book: Book
+export type ReadingStep = {
+  id: string
+  title: string
+  book?: Book
   explanation: string
-  score: number
+  sourceUrl: string
 }
 
-export function getReachableBookIds(currentId: string | null, readIds: Set<string>) {
-  if (!currentId) return new Set<string>()
+export function getNextSteps(currentId: string | null, readIds: Set<string>, option: ReadingOption): ReadingStep[] {
+  if (option === 'saga') {
+    const index = currentId ? sagaBookIds.indexOf(currentId) : -1
+    const nextId = sagaBookIds.slice(index + 1).find((id) => !readIds.has(id))
+    return nextId ? [{ id: nextId, title: bookById[nextId].title, book: bookById[nextId], explanation: index < 0 ? 'First unfinished book in Black Library’s published Saga list.' : 'Next unfinished book in Black Library’s published Saga list.', sourceUrl: readingOptions.saga.sourceUrl }] : []
+  }
+  const node = currentId ? referenceNodeByBookId[currentId] : undefined
+  if (!node) return []
+  const queue = [node.id]
+  const visited = new Set<string>()
+  const steps = new Map<string, ReadingStep>()
+  while (queue.length) {
+    const from = queue.shift()!
+    if (visited.has(from)) continue
+    visited.add(from)
+    for (const edge of reference.connections.filter((edge) => edge.from === from)) {
+      const target = reference.nodes.find((node) => node.id === edge.to)!
+      const book = referenceBookByNodeId[target.id]
+      if (book && readIds.has(book.id)) queue.push(target.id)
+      else if (book?.id !== currentId) steps.set(target.id, { id: target.id, title: book?.title ?? target.title, book, explanation: book ? 'Connected in the reference flowchart; choices have no app ranking.' : 'Outside this catalogue. Follow this step in the original flowchart.', sourceUrl: reference.url })
+    }
+    for (const edge of reference.unresolved.filter((edge) => edge.from === from)) {
+      steps.set(edge.id, { id: edge.id, title: 'Continue in the original flowchart', explanation: 'This arrow has no attached destination in the source data. Check the original drawing.', sourceUrl: reference.url })
+    }
+  }
+  return [...steps.values()]
+}
+
+export function getReachableBookIds(currentId: string | null, readIds: Set<string>, option: ReadingOption) {
+  if (option === 'saga') return new Set(sagaBookIds.slice(currentId ? sagaBookIds.indexOf(currentId) + 1 : 0).filter((id) => !readIds.has(id)))
+  const node = currentId ? referenceNodeByBookId[currentId] : undefined
+  if (!node) return new Set<string>()
   const reachable = new Set<string>()
-  const queue = [currentId]
+  const queue = [node.id]
+  const visited = new Set<string>()
   while (queue.length) {
     const id = queue.shift()!
-    connections.filter((edge) => edge.from === id).forEach((edge) => {
-      if (!readIds.has(edge.to) && !reachable.has(edge.to)) {
-        reachable.add(edge.to)
-        if (edge.kind === 'recommended' || edge.kind === 'sequel') queue.push(edge.to)
-      }
+    if (visited.has(id)) continue
+    visited.add(id)
+    reference.connections.filter((edge) => edge.from === id).forEach((edge) => {
+      const book = referenceBookByNodeId[edge.to]
+      if (book && book.id !== currentId && !readIds.has(book.id)) reachable.add(book.id)
+      queue.push(edge.to)
     })
   }
   return reachable
-}
-
-export function getRecommendations(currentId: string | null, readIds: Set<string>): Recommendation[] {
-  const candidates = connections
-    .filter((edge) => edge.from === currentId && !readIds.has(edge.to))
-    .map((edge) => {
-      const book = bookById[edge.to]
-      const score = edge.kind === 'sequel' ? 100 : edge.kind === 'recommended' ? 85 : edge.kind === 'parallel' ? 62 : edge.kind === 'prerequisite' ? 52 : 32
-      return {
-        book,
-        score,
-        explanation: edge.explanation,
-      }
-    })
-    .sort((a, b) => b.score - a.score)
-
-  if (candidates.length) return candidates.slice(0, 3)
-
-  const fallback = books
-    .filter((book) => !readIds.has(book.id) && book.id !== currentId)
-    .map((book) => ({
-      book,
-      score: 10,
-      explanation: 'A nearby branch remains available while you choose your next route.',
-    }))
-  return fallback.slice(0, 3)
 }
