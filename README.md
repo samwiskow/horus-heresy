@@ -10,15 +10,16 @@ A personal reading companion for a story that branches across legions, campaigns
 
 ## Inspiration and credit
 
-Pathfinder is inspired by the community-created **[Horus Heresy series-order flowchart hosted on kylebb.com](https://www.kylebb.com/HH/HHSeriesOrder.svg)**. That map is the starting reference for this project’s approach to branching reading routes. Please visit the original: the work of connecting the stories is what made this experiment possible.
+Pathfinder is inspired by the community-created **[Horus Heresy series-order flowchart hosted on kylebb.com](https://www.kylebb.com/HH/HHSeriesOrder.svg)**. That map supplies the reading connections for the Reference flowchart option. Please visit the original: the work of connecting the stories is what made this experiment possible.
 
 The **[interactive Horus Heresy timeline on gaming.kylebb.com](https://gaming.kylebb.com/hhtimeline/)** is a second reference for exploring the series through its story arcs.
 
-Pathfinder adds its own interface, curated catalogue, recommendation rules, and local reading progress. It does not reproduce the original map artwork or claim ownership of it. The catalogue currently contains **62 books across nine story arcs**; it is a selective guide, not an exhaustive replacement for the source map. Connections are suggestions, not one official reading order.
+Pathfinder adds its own interface, a selective catalogue, and local reading progress. It does not reproduce the original map artwork or claim ownership of it. The catalogue currently contains **62 books across nine story arcs**; it is a selective guide, not an exhaustive replacement for the source map. The reference option follows the source arrows without adding bridges or ranking branches. Short stories outside the catalogue link to the original flowchart. The separate Black Library Saga option follows the publisher’s selection.
 
 ## A reading desk and a story atlas
 
-- **Pick up where you left off.** See your current book and a suggested next book, with a short reason for the recommendation.
+- **Pick up where you left off.** See your current book and the next steps recorded by your chosen source.
+- **Choose a source.** Follow Daunt’s reference flowchart or the official [Black Library: Horus Heresy Saga selection](https://www.warhammer-community.com/en-gb/articles/17oswfuf/world-championships-preview-experience-the-greatest-hits-of-the-horus-heresy-saga-in-a-new-curated-series/). Saga includes 12 books in the publisher’s listed order and ends at *Slaves to Darkness*. Progress is shared across both options.
 - **Follow the branches.** Explore arc lanes, a reference flow, or a campaign map. Select a book to highlight its connections and read its notes.
 - **Find your route.** Search by title or legion, filter by story arc, or show the onward route from your current book.
 - **Keep a reading library.** Mark books finished independently of your reading position, undo a progress change, and export progress as JSON.
@@ -49,7 +50,7 @@ pnpm dev --host 127.0.0.1
 Open the local address printed by Vite.
 
 ```sh
-pnpm test     # Recommendation, graph, and progress regression checks
+pnpm test     # Source routes, graph, and progress regression checks
 pnpm build    # TypeScript check and production build in dist/
 pnpm preview --host 127.0.0.1
 ```
@@ -59,7 +60,7 @@ pnpm preview --host 127.0.0.1
 | File | Purpose |
 | --- | --- |
 | [`src/data.ts`](src/data.ts) | Books, story arcs, and curated connections |
-| [`src/logic.ts`](src/logic.ts) | Deterministic recommendations and onward routes |
+| [`src/logic.ts`](src/logic.ts) | Source-defined next steps and onward routes |
 | [`src/progress.ts`](src/progress.ts) | Completion changes that preserve reading position |
 | [`src/App.tsx`](src/App.tsx) | Map, library, book notes, and browser persistence |
 | [`src/styles.css`](src/styles.css) | Annotated edition styles and responsive layouts |
@@ -80,3 +81,17 @@ If a connection is missing or misleading, [open an issue](https://github.com/sam
 ---
 
 This is an unofficial fan project. It is not affiliated with or endorsed by Games Workshop or Black Library. Horus Heresy, Warhammer, and related names belong to their respective owners. Original maps and linked reference material remain the work of their creators.
+
+## Source data and coverage
+
+`src/sources/reference-flowchart.json` contains the flowchart’s node titles and arrow identifiers, extracted from its embedded draw.io document on 1 October 2026. Version 0.9 is dated 2 July 2019. The snapshot includes 173 nodes, 192 resolved arrows, two unattached arrow endpoints, and the downloaded SVG’s SHA-256 digest. It does not copy the map artwork or cover images.
+
+The current catalogue represents 40 source nodes. The map displays their 31 direct source connections. Other source steps remain explicit links to the original flowchart; the app never joins across missing stories. Anthology collections are not substituted for individual stories in those collections. The source’s “Vulcan Lives” spelling maps to the catalogue’s “Vulkan Lives”; other title matching ignores leading articles and parenthetical labels.
+
+To reproduce the snapshot from a decoded copy of the reference SVG:
+
+```sh
+python3 scripts/import-reference.py /path/to/HHSeriesOrder.svg /tmp/reference-flowchart.json 2026-10-01
+```
+
+Black Library Saga is a separate publisher selection, not a replacement for the full branching guide. Its map lines indicate adjacent entries in the published list, not inferred sequel or prerequisite relationships. The app adds no continuation after its final title.
