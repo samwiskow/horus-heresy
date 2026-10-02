@@ -15,7 +15,9 @@ export function getConnectionFocus(connections: Connection[], selectedId: string
 export function layoutSourceFlow(items: Book[], connections: Connection[]): Book[] {
   const ids = new Set(items.map((book) => book.id))
   const edges = connections.filter((edge) => ids.has(edge.from) && ids.has(edge.to))
-  const ranks = new Map(items.map((book) => [book.id, 0]))
+  const openingIds = ['horus-rising', 'false-gods', 'galaxy-in-flames', 'flight-eisenstein']
+  const parallelRank = edges.some((edge) => edge.kind === 'reference') && openingIds.every((id) => ids.has(id)) ? openingIds.length : 0
+  const ranks = new Map(items.map((book) => [book.id, openingIds.includes(book.id) ? 0 : parallelRank]))
   for (let pass = 0; pass < items.length; pass++) {
     let changed = false
     for (const edge of edges) {

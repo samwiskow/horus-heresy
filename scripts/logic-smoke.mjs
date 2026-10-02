@@ -3,7 +3,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { App } from '../src/App.tsx'
 import { bookById, books } from '../src/data.ts'
-import { getEdgeRoute, getConnectionFocus, layoutSourceFlow, NODE_WIDTH, NODE_HEIGHT } from '../src/map-layout.ts'
+import { getEdgeRoute, getConnectionFocus, layoutSourceFlow, NODE_WIDTH, NODE_HEIGHT, ROW_STEP } from '../src/map-layout.ts'
 import { getReachableBookIds, getNextSteps } from '../src/logic.ts'
 import { getConnections, reference, referenceBookByNodeId, referenceNodeByBookId, sagaBookIds, siegeBookIds, siegeBookNumbers } from '../src/reading-options.ts'
 import { parseProgress, toggleFinished } from '../src/progress.ts'
@@ -203,6 +203,31 @@ run('lays out source arrows downwards without moving catalogue data or overlappi
     assert.deepEqual(layoutSourceFlow(books, edges), items)
   }
   assert.equal(JSON.stringify(books), before)
+})
+
+run('places the reference opening above every parallel stream', () => {
+  const openingIds = ['horus-rising', 'false-gods', 'galaxy-in-flames', 'flight-eisenstein']
+  const referenceBooks = books.filter((book) => referenceNodeByBookId[book.id]).sort((a, b) => a.title.localeCompare(b.title))
+  for (const input of [referenceBooks, [...referenceBooks].reverse()]) {
+    const items = layoutSourceFlow(input, getConnections('reference'))
+    const placed = Object.fromEntries(items.map((book) => [book.id, book]))
+    const opening = openingIds.map((id) => placed[id])
+    assert.equal(new Set(opening.map((book) => book.x)).size, 1)
+    for (const [index, book] of opening.entries()) {
+      if (index) assert.ok(book.y > opening[index - 1].y + NODE_HEIGHT)
+    }
+    for (const book of items.filter((book) => !openingIds.includes(book.id))) {
+      assert.ok(book.y > placed['flight-eisenstein'].y + NODE_HEIGHT, book.title)
+    }
+  }
+})
+
+run('keeps focused reference views compact', () => {
+  for (const selectedId of ['horus-rising', 'false-gods', 'galaxy-in-flames', 'flight-eisenstein', 'know-no-fear']) {
+    const focused = getConnectionFocus(getConnections('reference'), selectedId)
+    const items = layoutSourceFlow(books.filter((book) => focused.ids.has(book.id)), focused.edges)
+    assert.ok(Math.max(...items.map((book) => book.y)) - Math.min(...items.map((book) => book.y)) <= 2 * ROW_STEP)
+  }
 })
 
 run('keeps different source arrows from sharing line segments', () => {
