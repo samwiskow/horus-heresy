@@ -70,7 +70,7 @@ main { padding: 0 44px 26px; }
 .source-paths span { color: var(--muted); }
 .source-paths a, .connection-list > a { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; color: var(--accent); }
 .connection-list > a { display: flex; }
-.reading-desk { display: flex; align-items: center; gap: 28px; padding: 10px 0; border-bottom: 1px solid var(--ink); }
+.reading-desk { display: flex; align-items: center; gap: 28px; padding: 8px 0; border-bottom: 1px solid var(--ink); }
 .current-reading { display: grid; grid-template-columns: minmax(0, 1fr) auto; flex: 1; padding-right: 24px; border-right: 1px solid var(--line); }
 .current-reading .section-label, .current-reading .book-heading, .current-reading p { grid-column: 1; }
 .current-reading > .text-action { grid-column: 2; grid-row: 1 / span 3; align-self: center; }
@@ -79,7 +79,7 @@ main { padding: 0 44px 26px; }
 .next-reading .next-actions { grid-column: 2; grid-row: 1 / span 3; flex-direction: column; align-items: start; gap: 0; }
 .section-label { display: flex; align-items: center; gap: 8px; color: var(--accent); margin-bottom: 4px; }
 .section-label h2 { margin: 0; font-size: 13px; font-weight: 600; }
-.book-heading { display: block; text-align: left; font-size: clamp(21px, 2vw, 27px); line-height: 1.25; padding: 0; }
+.book-heading { display: block; text-align: left; font-size: clamp(20px, 1.6vw, 22px); line-height: 1.25; padding: 0; }
 .book-heading:hover { color: var(--accent); }
 .reading-desk p { margin: 4px 0; max-width: 56ch; color: var(--muted); font-size: 12px; }
 .next-actions, .book-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
@@ -231,13 +231,13 @@ main { padding: 0 44px 26px; }
   .reading-option .select-field { display: block; }
   .reading-option .select-field select { display: block; width: 100%; max-width: 100%; margin-top: 6px; }
   .reading-option p { margin: 8px 0; min-width: 0; }
-  .reading-desk { display: block; padding: 12px 0; }
-  .reading-desk .current-reading { padding: 0 0 10px; border-right: 0; border-bottom: 1px solid var(--line); }
-  .reading-desk .next-reading { padding-top: 12px; }
+  .reading-desk { display: block; padding: 8px 0; }
+  .reading-desk .current-reading { padding: 0 0 8px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .reading-desk .next-reading { padding-top: 8px; }
   .current-reading { display: block; padding-right: 12px; }
   .next-reading { display: block; flex: 1; }
   .next-reading .next-actions { flex-direction: row; flex-wrap: wrap; }
-  .book-heading { font-size: 23px; }
+  .book-heading { font-size: 20px; }
   .section-label { font-size: 12px; }
   .section-label h2 { font-size: 12px; }
   .reading-desk p { font-size: 11px; }
