@@ -207,13 +207,21 @@ run('routes all source arrows outside book plates', () => {
   }
 })
 
-run('lays out source arrows downwards without moving catalogue data or overlapping plates', () => {
+run('lays out source arrows forwards without moving catalogue data or overlapping plates', () => {
   const before = JSON.stringify(books)
   for (const option of ['reference', 'saga', 'siege']) {
     const edges = getConnections(option)
     const items = layoutSourceFlow(books, edges)
     const placed = Object.fromEntries(items.map((book) => [book.id, book]))
-    for (const edge of edges) assert.ok(placed[edge.to].y > placed[edge.from].y, `${option}: ${edge.from} → ${edge.to}`)
+    for (const edge of edges) {
+      const from = placed[edge.from]
+      const to = placed[edge.to]
+      const openingIds = ['horus-rising', 'false-gods', 'galaxy-in-flames', 'flight-eisenstein']
+      if (option === 'reference' && openingIds.includes(edge.from) && openingIds.includes(edge.to)) {
+        assert.equal(to.y, from.y)
+        assert.ok(to.x > from.x + NODE_WIDTH)
+      } else assert.ok(to.y > from.y, `${option}: ${edge.from} → ${edge.to}`)
+    }
     for (const [index, book] of items.entries()) for (const other of items.slice(index + 1)) {
       assert.equal(book.x < other.x + NODE_WIDTH && book.x + NODE_WIDTH > other.x && book.y < other.y + NODE_HEIGHT && book.y + NODE_HEIGHT > other.y, false)
     }
@@ -229,13 +237,15 @@ run('places the reference opening above every parallel stream', () => {
     const items = layoutSourceFlow(input, getConnections('reference'))
     const placed = Object.fromEntries(items.map((book) => [book.id, book]))
     const opening = openingIds.map((id) => placed[id])
-    assert.equal(new Set(opening.map((book) => book.x)).size, 1)
+    assert.equal(new Set(opening.map((book) => book.y)).size, 1)
     for (const [index, book] of opening.entries()) {
-      if (index) assert.ok(book.y > opening[index - 1].y + NODE_HEIGHT)
+      if (index) assert.ok(book.x > opening[index - 1].x + NODE_WIDTH)
     }
     for (const book of items.filter((book) => !openingIds.includes(book.id))) {
       assert.ok(book.y > placed['flight-eisenstein'].y + NODE_HEIGHT, book.title)
     }
+    const streams = layoutSourceFlow(input.filter((book) => !openingIds.includes(book.id)), getConnections('reference'))
+    for (const book of streams) assert.equal(placed[book.id].x, book.x, book.title)
   }
 })
 
@@ -244,6 +254,25 @@ run('keeps focused reference views compact', () => {
     const focused = getConnectionFocus(getConnections('reference'), selectedId)
     const items = layoutSourceFlow(books.filter((book) => focused.ids.has(book.id)), focused.edges)
     assert.ok(Math.max(...items.map((book) => book.y)) - Math.min(...items.map((book) => book.y)) <= 2 * ROW_STEP)
+    const opening = ['horus-rising', 'false-gods', 'galaxy-in-flames', 'flight-eisenstein'].map((id) => items.find((book) => book.id === id)).filter(Boolean)
+    if (opening.length) assert.equal(new Set(opening.map((book) => book.y)).size, 1)
+  }
+})
+
+run('routes opening arrows directly left to right between books', () => {
+  const edges = getConnections('reference')
+  const items = layoutSourceFlow(books, edges)
+  const placed = Object.fromEntries(items.map((book) => [book.id, book]))
+  for (const [fromId, toId] of [['horus-rising', 'false-gods'], ['false-gods', 'galaxy-in-flames'], ['galaxy-in-flames', 'flight-eisenstein']]) {
+    const from = placed[fromId]
+    const to = placed[toId]
+    const route = getEdgeRoute(from, to, edges, items)
+    assert.equal(route.length, 2)
+    assert.ok(route[0].x > from.x + NODE_WIDTH)
+    assert.ok(route[1].x < to.x)
+    assert.ok(route[1].x > route[0].x)
+    assert.equal(route[0].y, route[1].y)
+    assert.ok(route[0].y > from.y && route[0].y < from.y + NODE_HEIGHT)
   }
 })
 
