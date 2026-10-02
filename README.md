@@ -23,7 +23,7 @@ Pathfinder adds its own interface, a selective catalogue, and local reading prog
 - **Follow the branches.** Use the connection map to highlight source arrows and inspect book notes. Map positions are a browsing layout, not arc memberships or reading order.
 - **Find your route.** Search by title or legion, or show the onward route from your current book.
 - **Keep a reading library.** Mark books finished independently of your reading position, undo a progress change, and export progress as JSON.
-- **Use the view that suits you.** Book list is the default on desktop and phones; the full map remains available. Reference titles appear alphabetically. Saga and Siege retain their publisher order.
+- **Use the view that suits you.** Connection map and Book list are visible tabs on desktop and phones. Connection map opens first; the full-screen map remains available on phones. Reference titles appear alphabetically. Saga and Siege retain their publisher order.
 - **Choose when to reveal details.** Story summaries sit behind a disclosure with a spoiler label. Titles and relationship labels remain visible, so this is not a fully spoiler-free guide.
 
 The Annotated edition design uses warm paper colours, serif book titles, and red selection marks. Reading advice and the map share the screen.
