@@ -164,7 +164,7 @@ Book titles and page titles use the serif. Navigation, metadata, descriptions, a
 
 The shell has a maximum width (1800px). Desktop content uses generous side margins. Explore starts with a compact reading route, then gives the map the full content width and a height tied to the viewport. At (1100px), margins reduce to (28px) and toolbars wrap. Book notes open in a temporary side panel from the Book notes action or a book index, so the map and book index retain their full width.
 
-At (760px), navigation moves below the brand and content becomes one column. The mobile list remains the initial Explore view; Explore full map opens a screen-height map with a clear return to the list and a selected-book bar. Book notes cover the screen after the Book notes action or list selection and can be closed to return to the map or list. The full-width Story arcs and My library indexes use two book columns on desktop and one on mobile.
+At (760px), navigation moves below the brand and content becomes one column. Connection map opens first, with Book list available through a visible tab; Expand map opens a screen-height map with a clear return to the inline map and a selected-book bar. Book notes cover the screen after the Book notes action or list selection and can be closed to return to the map or list. The full-width Story arcs and My library indexes use two book columns on desktop and one on mobile.
 
 Content groups use rules and space rather than separate cards for each item. Lists align book number, title, state, and action in columns. Preserve room for long titles and wrapping actions.
 
@@ -186,7 +186,7 @@ Keyboard focus uses a red outline (2px) with an offset (4px). Disabled actions u
 
 ### Inputs / Fields
 
-Search sits directly on the page surface with a search icon. Focus outlines the entire search group (2px), with an offset (2px). Select controls use a sheet background, a thin rule border, and the small control radius. Labels remain available to assistive technology when mobile hides their visible text.
+Search sits directly on the page surface with a search icon. Focus outlines the entire search group (2px), with an offset (2px). Select controls use a sheet background, a thin rule border, and the small control radius. Labels remain available to assistive technology when mobile hides their visible text. Explore uses visible Connection map and Book list tabs below the reading strip, with shared source and search controls. The matching book count sits beside search; Map key is available in the map controls.
 
 ### Navigation
 

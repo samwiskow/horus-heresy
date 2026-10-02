@@ -159,11 +159,28 @@ run('offers source browsing without unsupported story arc groups', () => {
   const page = renderToStaticMarkup(createElement(App))
   assert.match(page, /Reference flowchart/)
   assert.match(page, /Black Library: Horus Heresy Saga/)
-  assert.match(page, /Titles A–Z/)
+  assert.match(page, /Book list/)
   assert.match(page, /Connection map/)
   assert.match(page, /Siege of Terra continuation/)
   assert.match(page, /Explore Siege of Terra/)
   assert.doesNotMatch(page, /Legions in collision|Loyalist convergence|The Warmaster ascendant|Arc lanes|aria-label="Story arc"|>Story arcs</)
+})
+
+run('exposes map and list tabs with matching accessible panels', () => {
+  const page = renderToStaticMarkup(createElement(App))
+  const tabs = [...page.matchAll(/<button[^>]*role="tab"[^>]*>/g)].map(([tag]) => tag)
+  assert.equal(tabs.length, 2)
+  assert.equal(tabs.filter((tag) => tag.includes('aria-selected="true"')).length, 1)
+  for (const tab of tabs) {
+    const panelId = tab.match(/aria-controls="([^"]+)"/)[1]
+    const tabId = tab.match(/id="([^"]+)"/)[1]
+    const panel = page.match(new RegExp(`<div[^>]*role="tabpanel"[^>]*id="${panelId}"[^>]*>`))[0]
+    assert.ok(panel.includes(`aria-labelledby="${tabId}"`))
+    assert.equal(panel.includes('hidden=""'), !tab.includes('aria-selected="true"'))
+  }
+  assert.equal((page.match(/<select aria-label="Reading option"/g) || []).length, 1)
+  assert.doesNotMatch(page, /aria-label="View"|The story atlas|How to read the map/)
+  assert.match(page, /<summary>Map key<\/summary>/)
 })
 
 run('routes all source arrows outside book plates', () => {
