@@ -21,7 +21,7 @@ typography:
     letterSpacing: "-.025em"
   reading-title:
     fontFamily: "Libre Baskerville, Georgia, serif"
-    fontSize: "clamp(21px, 2vw, 27px)"
+    fontSize: "clamp(20px, 1.6vw, 22px)"
     fontWeight: 400
     lineHeight: 1.25
     letterSpacing: "-.025em"
@@ -151,7 +151,7 @@ Book titles and page titles use the serif. Navigation, metadata, descriptions, a
 
 ### Hierarchy
 - **Display:** collection page titles; the smaller atlas title keeps the map close to the top of Explore.
-- **Reading title:** current and recommended books; mobile uses a fixed size (23px).
+- **Reading title:** current and recommended books use 20–22px; mobile uses a fixed size (20px). The reading strip uses compact spacing and an outlined Start reading action with a minimum height of 44px.
 - **Notes title:** the selected book in the notes panel.
 - **List title:** books in the linear list. Full-width collection indexes use (17px) on desktop and (15px) on mobile.
 - **Body:** reading explanations and story notes. Reading explanations have a maximum measure (56ch).
