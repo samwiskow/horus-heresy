@@ -8,15 +8,17 @@ physical-device test. Desktop uses 1440 × 1080; 900 × 1000 was also checked.
 ## Evidence
 
 - `desktop.png`: full desktop page and reference dropdown.
+- `vertical-overview.png`: complete map with the source branch arrangement.
+- `mobile-overview.png`: the same overview at a phone viewport.
 - `card-types.png`: novel and novella cards, source arrows, and type symbols.
 - `graphic-and-audio.png`: graphic novel and audio drama cards.
 - `mobile.png`: full phone page.
 - `mobile-expanded.png`: expanded phone map and return control.
-- `browser-checks.json`: 15 passing browser checks, including saved progress,
+- `browser-checks.json`: 16 passing browser checks, including saved progress,
   independent completion, hidden-story navigation, filters, keyboard selection,
-  and the unchanged publisher lists.
+  fixed reference positions when supporting works are hidden, and the unchanged publisher lists.
 
-`pnpm test` passed all 35 route, layout, catalogue, and progress checks.
+`pnpm test` passed all 37 route, layout, catalogue, and progress checks.
 `pnpm build` passed TypeScript and the production build. A source reimport matched
 the saved reference JSON, including its original arrows and unresolved endpoints.
 `git diff --check` passed.
@@ -28,3 +30,9 @@ warning separately. No application change was made for that unrelated asset.
 The complete reference is the 2019 source, not a claim to cover every later
 Horus Heresy publication. Two unresolved source endpoints remain unresolved.
 See `docs/reference-catalogue.md` for the publication evidence and scope.
+
+The full reference retains original source node centres, with extra vertical
+space for readable cards. Arrow bends are recalculated around the cards; their
+endpoints are unchanged. All stories and Novels only keep the same positions.
+The overview uses thin screen-sized strokes below 30% zoom. Focus connections
+keeps the previous compact local arrangement.

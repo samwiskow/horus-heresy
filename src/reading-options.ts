@@ -53,6 +53,18 @@ export const referenceNodeByBookId = Object.fromEntries(reference.nodes.flatMap(
   return book ? [[book.id, node]] : []
 }))
 
+const referenceCentres = reference.nodes.map((node) => ({
+  id: referenceBookByNodeId[node.id].id,
+  x: node.bounds[0] + node.bounds[2] / 2,
+  y: node.bounds[1] + node.bounds[3] / 2,
+}))
+const referenceLeft = Math.min(...referenceCentres.map((point) => point.x))
+const referenceTop = Math.min(...referenceCentres.map((point) => point.y))
+export const referencePositions = Object.fromEntries(referenceCentres.map((point) => [point.id, {
+  x: 70 + (point.x - referenceLeft) * 2.75,
+  y: 100 + (point.y - referenceTop) * 4,
+}]))
+
 const referenceConnections: Connection[] = reference.connections.flatMap((edge) => {
   const from = referenceBookByNodeId[edge.from]
   const to = referenceBookByNodeId[edge.to]

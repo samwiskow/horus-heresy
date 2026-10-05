@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-05T10:55:34.141836Z",
+  "generatedAt": "2026-10-05T13:18:52.087434Z",
   "title": "Design System: Pathfinder",
   "extensions": {
     "colorMeta": {
@@ -209,6 +209,11 @@
         "name": "The Work Type Rule",
         "body": "Use a symbol and written type label on each card. Novels have rounded corners; other types have a folded corner. Keep publication medium and availability in notes.",
         "section": "shapes"
+      },
+      {
+        "name": "The Reference Layout Rule",
+        "body": "Use original source node centres for the full reference, expanded 2.75 horizontally and 4 vertically to fit the larger cards. Keep positions stable across All stories and Novels only. Preserve arrow endpoints and route bends around the cards. Keep Focus connections compact. Below 30% zoom, retain thin screen-sized arrow and card strokes.",
+        "section": "layout"
       }
     ],
     "dos": [

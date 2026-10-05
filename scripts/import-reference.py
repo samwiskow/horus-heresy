@@ -73,7 +73,7 @@ snapshot = {
     'modified': file.get('modified'),
     'retrieved': sys.argv[3],
     'sha256': hashlib.sha256(source).hexdigest(),
-    'nodes': [{key: value for key, value in node.items() if key != 'bounds'} for node in nodes.values() if node['id'] in used],
+    'nodes': [node for node in nodes.values() if node['id'] in used],
     'connections': connections,
     'unresolved': unresolved,
 }

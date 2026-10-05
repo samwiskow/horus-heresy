@@ -71,6 +71,16 @@ not claim present availability. Publication record links support type decisions.
 Finishing a collection never marks its individual works finished, and reading
 position is preserved when another entry is finished.
 
+## Map arrangement
+
+The source snapshot now retains each node's original bounds. The full map uses
+those centres with additional space for the 220 × 110 cards, expanding the
+horizontal distance by 2.75 and the vertical distance by 4. This preserves the
+original relative branch positions and gives the overview a mainly vertical
+shape. Novels only retains exactly the same positions for its visible works.
+Arrows retain their source endpoints; their bends are recalculated to avoid the
+larger cards. Focus connections keeps its compact local layout.
+
 ## Views
 
 All stories is the default. Novels only is a visibility filter across the same

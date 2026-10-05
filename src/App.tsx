@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerE
 import { ArrowUpRight, BookOpen, Check, Download, Map, Minus, Plus, RotateCcw, Search, Target, X, ArrowRight, List } from 'lucide-react'
 import { bookById, books, referenceCollections, type Book, type Connection } from './data'
 import { parseProgress, toggleFinished, type Progress } from './progress'
-import { getConnections, getOptionBooks, getSequenceBookIds, isReference, readingOptions, referenceNodeByBookId, siegeBookNumbers, type ReadingOption } from './reading-options'
+import { getConnections, getOptionBooks, getSequenceBookIds, isReference, readingOptions, referenceNodeByBookId, referencePositions, siegeBookNumbers, type ReadingOption } from './reading-options'
 import { BookType, bookTypes } from './book-types'
 import { getReachableBookIds, getNextSteps } from './logic'
-import { edgePath, getConnectionFocus, layoutSourceFlow, NODE_WIDTH, NODE_HEIGHT } from './map-layout'
+import { edgePath, getEdgeRoute, getConnectionFocus, layoutSourceFlow, NODE_WIDTH, NODE_HEIGHT } from './map-layout'
 
 type View = 'map' | 'library'
 type MapMode = 'map' | 'list'
@@ -101,7 +101,7 @@ function fitCampaign(visibleBooks: Book[], size: { width: number; height: number
 }
 
 function MapCanvas({
-  selectedId, currentId, readIds, visibleBooks, highlightPaths, focusConnections, recommendedIds, onSelect, focusRevision, connections,
+  selectedId, currentId, readIds, visibleBooks, highlightPaths, focusConnections, referenceLayout, recommendedIds, onSelect, focusRevision, connections,
 }: {
   selectedId: string | null
   currentId: string
@@ -109,6 +109,7 @@ function MapCanvas({
   visibleBooks: Book[]
   highlightPaths: boolean
   focusConnections: boolean
+  referenceLayout: boolean
   focusRevision: number
   recommendedIds: Set<string>
   connections: Connection[]
@@ -126,6 +127,7 @@ function MapCanvas({
   const visibleIds = new Set(visibleBooks.map((book) => book.id))
   const visibleConnections = connections.filter((edge) => visibleIds.has(edge.from) && visibleIds.has(edge.to))
   const placedById = Object.fromEntries(visibleBooks.map((book) => [book.id, book]))
+  const paths = useMemo(() => Object.fromEntries(visibleConnections.map((edge) => [`${edge.from}:${edge.to}`, edgePath(getEdgeRoute(placedById[edge.from], placedById[edge.to], visibleConnections, visibleBooks, referenceLayout))])), [visibleKey, connections, referenceLayout])
   const focusId = highlightPaths ? selectedId : null
   const focusedBookIds = getFocusedBookIds(visibleConnections, focusId)
   const focusPan = (book: Book, scale: number) => ({
@@ -191,7 +193,7 @@ function MapCanvas({
   const stopDrag = () => { drag.current = null }
 
   return (
-    <div className={`map-canvas-shell ${highlightPaths ? 'paths-highlighted' : ''}`} ref={shellRef}>
+    <div className={`map-canvas-shell ${highlightPaths ? 'paths-highlighted' : ''} ${zoom < 0.3 ? 'map-overview' : ''}`} ref={shellRef}>
       <svg
         className="map-canvas"
         viewBox={`0 0 ${size.width} ${size.height}`}
@@ -219,11 +221,9 @@ function MapCanvas({
           <text className="map-axis-label" x="70" y="45">{focusConnections ? 'INCOMING AND OUTGOING CONNECTIONS' : 'FOLLOW THE ARROWS'}</text>
           <line className="map-axis" x1="70" y1="62" x2="1170" y2="62" />
           {[...visibleConnections].sort((a, b) => Number(a.from === focusId) - Number(b.from === focusId)).map((edge) => {
-            const from = placedById[edge.from]
-            const to = placedById[edge.to]
             const active = edge.from === focusId
             const dimmed = Boolean(focusId) && !active && !focusConnections
-            return <g key={`${edge.from}-${edge.to}`}><path className="map-edge-clearance" d={edgePath(from, to, visibleConnections, visibleBooks)} /><path className={`map-edge ${active ? 'active' : ''} ${dimmed ? 'dimmed' : ''} ${edge.kind}`} d={edgePath(from, to, visibleConnections, visibleBooks)} markerEnd={`url(#${active ? 'arrowhead-active' : 'arrowhead'})`} /></g>
+            return <g key={`${edge.from}-${edge.to}`}><path className="map-edge-clearance" d={paths[`${edge.from}:${edge.to}`]} /><path className={`map-edge ${active ? 'active' : ''} ${dimmed ? 'dimmed' : ''} ${edge.kind}`} d={paths[`${edge.from}:${edge.to}`]} markerEnd={`url(#${active ? 'arrowhead-active' : 'arrowhead'})`} /></g>
           })}
           {visibleBooks.map((book) => <BookNode key={book.id} book={book} selected={selectedId === book.id} dimmed={Boolean(focusId) && !focusedBookIds.has(book.id)} readIds={readIds} currentId={currentId} recommended={recommendedIds.has(book.id)} onSelect={onSelect} />)}
         </g>
@@ -235,7 +235,7 @@ function MapCanvas({
         <span className="control-rule" />
         <button className="map-text-control" onClick={() => setView(fitCampaign(visibleBooks, size, focusConnections ? 40 : 80))}>Fit all</button>
         <IconButton label="Return to my book" disabled={!placedById[currentId]} onClick={() => setView({ zoom: 0.9, pan: focusPan(placedById[currentId], 0.9) })}><Target size={15} /></IconButton>
-        <details className="map-key" onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus() } }}><summary>Map key</summary><div><p><b>Arrow:</b> a connection from the selected source.</p><div className="type-key">{Object.keys(bookTypes).map((kind) => <BookType key={kind} kind={kind as Book['kind']} />)}</div><p><b>Card shape:</b> novels have rounded corners. Other works have a folded corner.</p><p><b>Colour mark:</b> the book’s colour in Daunt’s reference. Colours are not unique legion or story arc labels. Books absent from the reference have no mark.</p><p>All stories includes every node in the 2019 reference. Novels only hides other works; arrows never skip hidden steps.</p><p>Select a book to trace its paths. Open Book notes when you want more detail. Drag the Connection map, or use Book list. The reference opening flows left to right; other connections flow from top to bottom. Positions do not define story arcs or an additional reading order. Focus connections shows only direct incoming and outgoing links; Highlight next paths still marks outgoing arrows.</p></div></details>
+        <details className="map-key" onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus() } }}><summary>Map key</summary><div><p><b>Arrow:</b> a connection from the selected source.</p><div className="type-key">{Object.keys(bookTypes).map((kind) => <BookType key={kind} kind={kind as Book['kind']} />)}</div><p><b>Card shape:</b> novels have rounded corners. Other works have a folded corner.</p><p><b>Colour mark:</b> the book’s colour in Daunt’s reference. Colours are not unique legion or story arc labels. Books absent from the reference have no mark.</p><p>All stories includes every node in the 2019 reference. Novels only hides other works; arrows never skip hidden steps.</p><p>Select a book to trace its paths. Open Book notes when you want more detail. Drag the Connection map, or use Book list. The reference opening flows left to right; the full reference keeps the original branch arrangement with more vertical space. Positions do not define story arcs or an additional reading order. Focus connections shows only direct incoming and outgoing links; Highlight next paths still marks outgoing arrows.</p></div></details>
       </div>
       <div className="map-hint"><span className="drag-dot" /> Drag the map to scan the route</div>
     </div>
@@ -314,7 +314,7 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
   const selectedSourceSteps = getNextSteps(selectedId, new Set(), readingOption).filter((step) => !step.book)
   const visibleBooks = optionBooks.filter((book) => (!search || `${book.title} ${book.faction}`.toLowerCase().includes(search.toLowerCase())) && (!routeOnly || routeIds.has(book.id) || book.id === currentId))
   const optionKey = optionBooks.map((book) => book.id).join('|')
-  const sourceBooks = useMemo(() => layoutSourceFlow(optionBooks, connections), [optionKey, readingOption])
+  const sourceBooks = useMemo(() => layoutSourceFlow(optionBooks, connections, isReference(readingOption) ? referencePositions : undefined), [optionKey, readingOption])
   const focused = getConnectionFocus(connections, selectedId)
   const mapBooks = focusConnections
     ? layoutSourceFlow((isReference(readingOption) ? referenceBooks : optionBooks).filter((book) => focused.ids.has(book.id)), focused.edges)
@@ -390,7 +390,7 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
         {focusConnections && <p className="focus-description">Direct links to and from the selected book. Filters apply to the full map. Turn off Focus connections to return to your map position.</p>}
         {mapBooks.length === 0 ? <div className="empty-state"><h2>No books found</h2><p>Try another title, or clear the filters.</p><button className="quiet-action" onClick={() => { setSearch(''); setRouteOnly(false) }}>Clear filters</button></div> : <>
           <button ref={mobileMapToggleRef} className="mobile-map-toggle text-action" aria-expanded={fullMobileMap} onClick={() => setFullMobileMap(!fullMobileMap)}><Map size={17} />{fullMobileMap ? 'Back to map' : 'Expand map'}</button>
-          <div ref={mapRef} className={`atlas-map ${fullMobileMap ? 'mobile-expanded' : ''}`}><button ref={mapCloseRef} className="map-fullscreen-close quiet-action" onClick={closeFullMobileMap}><Map size={17} />Back to map</button><label className="map-highlight-mobile"><input type="checkbox" checked={highlightPaths} onChange={(event) => setHighlightPaths(event.target.checked)} />Next paths</label><label className="map-highlight-mobile map-focus-mobile"><input type="checkbox" checked={focusConnections} disabled={!(isReference(readingOption) ? referenceBooks : optionBooks).some((book) => book.id === selectedId)} onChange={(event) => setFocusConnections(event.target.checked)} />Focus connections</label><MapCanvas focusRevision={focusRevision} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={mapBooks} highlightPaths={highlightPaths} focusConnections={focusConnections} connections={mapConnections} recommendedIds={new Set(recommendations.map((item) => item.book!.id))} onSelect={selectMapBook} /><div className="map-selected-mobile"><div className="map-selected-heading"><span><small>Selected book</small><strong>{bookById[selectedId].title}</strong></span><button className="quiet-action" onClick={openNotes}>Book notes</button></div><div className="map-selected-branches">{highlightPaths ? <><small>Next</small>{nextPaths.length ? nextPaths.map((edge) => <button key={edge.to} onClick={() => selectMapBook(bookById[edge.to])}><ArrowRight size={13} />{bookById[edge.to].title}</button>) : <span>No visible next path</span>}</> : <span>Next paths hidden</span>}</div></div></div>
+          <div ref={mapRef} className={`atlas-map ${fullMobileMap ? 'mobile-expanded' : ''}`}><button ref={mapCloseRef} className="map-fullscreen-close quiet-action" onClick={closeFullMobileMap}><Map size={17} />Back to map</button><label className="map-highlight-mobile"><input type="checkbox" checked={highlightPaths} onChange={(event) => setHighlightPaths(event.target.checked)} />Next paths</label><label className="map-highlight-mobile map-focus-mobile"><input type="checkbox" checked={focusConnections} disabled={!(isReference(readingOption) ? referenceBooks : optionBooks).some((book) => book.id === selectedId)} onChange={(event) => setFocusConnections(event.target.checked)} />Focus connections</label><MapCanvas referenceLayout={isReference(readingOption) && !focusConnections} focusRevision={focusRevision} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={mapBooks} highlightPaths={highlightPaths} focusConnections={focusConnections} connections={mapConnections} recommendedIds={new Set(recommendations.map((item) => item.book!.id))} onSelect={selectMapBook} /><div className="map-selected-mobile"><div className="map-selected-heading"><span><small>Selected book</small><strong>{bookById[selectedId].title}</strong></span><button className="quiet-action" onClick={openNotes}>Book notes</button></div><div className="map-selected-branches">{highlightPaths ? <><small>Next</small>{nextPaths.length ? nextPaths.map((edge) => <button key={edge.to} onClick={() => selectMapBook(bookById[edge.to])}><ArrowRight size={13} />{bookById[edge.to].title}</button>) : <span>No visible next path</span>}</> : <span>Next paths hidden</span>}</div></div></div>
         </>}
         <div className="map-caption"><span><span className="status-sample selected" />Selected</span><span><BookOpen size={13} />Reading</span><span><Check size={13} />Finished</span><span className="caption-note">Select a book to trace its paths.</span></div>
       </div>

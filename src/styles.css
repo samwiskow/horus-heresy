@@ -200,6 +200,9 @@ main { padding: 0 44px 26px; }
 .map-edge { fill: none; stroke: var(--map-edge); stroke-width: 2.2; }
 .map-edge.active { stroke: var(--accent); stroke-width: 3.5; }
 .map-edge.dimmed { opacity: .38; }
+.map-overview .map-edge, .map-overview .node-plate { vector-effect: non-scaling-stroke; stroke-width: .75; }
+.map-overview .map-edge.active { stroke-width: 1.25; }
+.map-overview .map-edge-clearance { vector-effect: non-scaling-stroke; stroke-width: 2.5; }
 .map-node { cursor: pointer; }
 .node-plate { fill: var(--sheet); stroke: #8d877b; }
 .paths-highlighted .map-node:not(.dimmed) .node-plate { stroke: var(--accent); stroke-width: 2; }

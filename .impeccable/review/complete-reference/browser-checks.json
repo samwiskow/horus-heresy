@@ -9,6 +9,7 @@
     "Keyboard selection, collection notes, and independent story completion",
     "Collection completion does not complete individual works",
     "Starting a hidden work changes view without losing reading position",
+    "Reference positions stay fixed when supporting works are hidden",
     "Graphic novel and audio drama render with distinct type labels",
     "Intermediate width has no horizontal overflow",
     "Phone map expansion and return",
