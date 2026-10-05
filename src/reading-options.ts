@@ -2,7 +2,9 @@ import { books, type Connection } from './data'
 import reference from './sources/reference-flowchart.json'
 import siege from './sources/siege-of-terra.json'
 
-export type ReadingOption = 'reference' | 'saga' | 'siege'
+export type ReadingOption = 'reference' | 'reference-novels' | 'saga' | 'siege'
+
+export const isReference = (option: ReadingOption) => option === 'reference' || option === 'reference-novels'
 
 export const siegeBookIds = siege.books.map((book) => book.id)
 export const siegeBookNumbers = Object.fromEntries(siege.books.map((book) => [book.id, book.number]))
@@ -15,8 +17,13 @@ export const sagaBookIds = [
 
 export const readingOptions = {
   reference: {
-    label: 'Reference flowchart',
-    description: 'Daunt’s branching guide, version 0.9 · 2 July 2019. The map shows direct connections between catalogue books. Short stories and other missing steps link to the original; no steps are joined across them.',
+    label: 'Reference map — all stories',
+    description: 'All 173 nodes in Daunt’s branching guide, version 0.9 · 2 July 2019. Includes novels, novellas, short stories, audio dramas, graphic novels, and collections. Arrows follow the reference.',
+    sourceUrl: reference.url,
+  },
+  'reference-novels': {
+    label: 'Reference map — novels only',
+    description: 'Novels from the same reference. Other works are hidden, and arrows never skip them. Show all stories to reveal hidden next steps.',
     sourceUrl: reference.url,
   },
   saga: {
@@ -38,7 +45,7 @@ export function getSequenceBookIds(option: ReadingOption) {
 const titleKey = (title: string) => title.toLowerCase().replace(/\([^)]*\)/g, '').replace(/^(the|a)\s+/, '').replace(/[^a-z0-9]/g, '')
 export const referenceBookByNodeId = Object.fromEntries(reference.nodes.flatMap((node) => {
   const key = titleKey(node.title === 'Vulcan Lives' ? 'Vulkan Lives' : node.title)
-  const book = books.find((book) => titleKey(book.title) === key)
+  const book = books.find((book) => book.sourceId === node.id) ?? books.find((book) => !book.sourceId && titleKey(book.title) === key)
   return book ? [[node.id, book]] : []
 }))
 export const referenceNodeByBookId = Object.fromEntries(reference.nodes.flatMap((node) => {
@@ -72,6 +79,12 @@ const siegeConnections: Connection[] = siege.books.slice(0, -1).map((from, index
 
 export function getConnections(option: ReadingOption) {
   return option === 'siege' ? siegeConnections : option === 'saga' ? sagaConnections : referenceConnections
+}
+
+export function getOptionBooks(option: ReadingOption) {
+  return isReference(option)
+    ? books.filter((book) => referenceNodeByBookId[book.id] && (option !== 'reference-novels' || book.kind === 'novel')).sort((a, b) => a.title.localeCompare(b.title))
+    : getSequenceBookIds(option).map((id) => books.find((book) => book.id === id)!)
 }
 
 export { reference }

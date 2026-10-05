@@ -1,0 +1,30 @@
+# Complete reference map review
+
+Verified on 5 October 2026 in installed Google Chrome against the local Vite
+preview. Screenshots use sample reading progress in an isolated browser context.
+Phone screenshots use a 390 × 844 viewport; this is browser emulation, not a
+physical-device test. Desktop uses 1440 × 1080; 900 × 1000 was also checked.
+
+## Evidence
+
+- `desktop.png`: full desktop page and reference dropdown.
+- `card-types.png`: novel and novella cards, source arrows, and type symbols.
+- `graphic-and-audio.png`: graphic novel and audio drama cards.
+- `mobile.png`: full phone page.
+- `mobile-expanded.png`: expanded phone map and return control.
+- `browser-checks.json`: 15 passing browser checks, including saved progress,
+  independent completion, hidden-story navigation, filters, keyboard selection,
+  and the unchanged publisher lists.
+
+`pnpm test` passed all 35 route, layout, catalogue, and progress checks.
+`pnpm build` passed TypeScript and the production build. A source reimport matched
+the saved reference JSON, including its original arrows and unresolved endpoints.
+`git diff --check` passed.
+
+No application errors occurred. Chrome requested the existing missing
+`favicon.ico`, which returned 404; the browser report records that resource
+warning separately. No application change was made for that unrelated asset.
+
+The complete reference is the 2019 source, not a claim to cover every later
+Horus Heresy publication. Two unresolved source endpoints remain unresolved.
+See `docs/reference-catalogue.md` for the publication evidence and scope.

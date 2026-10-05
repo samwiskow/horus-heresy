@@ -1,5 +1,5 @@
 import { bookById, type Book } from './data'
-import { getSequenceBookIds, readingOptions, reference, referenceBookByNodeId, referenceNodeByBookId, type ReadingOption } from './reading-options'
+import { getSequenceBookIds, isReference, readingOptions, reference, referenceBookByNodeId, referenceNodeByBookId, type ReadingOption } from './reading-options'
 
 export type ReadingStep = {
   id: string
@@ -10,7 +10,7 @@ export type ReadingStep = {
 }
 
 export function getNextSteps(currentId: string | null, readIds: Set<string>, option: ReadingOption): ReadingStep[] {
-  if (option !== 'reference') {
+  if (!isReference(option)) {
     const sequence = getSequenceBookIds(option)
     const index = currentId ? sequence.indexOf(currentId) : -1
     const nextId = sequence.slice(index + 1).find((id) => !readIds.has(id))
@@ -40,7 +40,7 @@ export function getNextSteps(currentId: string | null, readIds: Set<string>, opt
 }
 
 export function getReachableBookIds(currentId: string | null, readIds: Set<string>, option: ReadingOption) {
-  if (option !== 'reference') {
+  if (!isReference(option)) {
     const sequence = getSequenceBookIds(option)
     return new Set(sequence.slice(currentId ? sequence.indexOf(currentId) + 1 : 0).filter((id) => !readIds.has(id)))
   }

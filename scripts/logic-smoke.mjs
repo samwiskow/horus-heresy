@@ -5,7 +5,7 @@ import { App } from '../src/App.tsx'
 import { bookById, books } from '../src/data.ts'
 import { getEdgeRoute, getConnectionFocus, layoutSourceFlow, NODE_WIDTH, NODE_HEIGHT, ROW_STEP } from '../src/map-layout.ts'
 import { getReachableBookIds, getNextSteps } from '../src/logic.ts'
-import { getConnections, reference, referenceBookByNodeId, referenceNodeByBookId, sagaBookIds, siegeBookIds, siegeBookNumbers } from '../src/reading-options.ts'
+import { getConnections, reference, referenceBookByNodeId, referenceNodeByBookId, getOptionBooks, sagaBookIds, siegeBookIds, siegeBookNumbers } from '../src/reading-options.ts'
 import { parseProgress, toggleFinished } from '../src/progress.ts'
 
 const run = (name, test) => {
@@ -49,15 +49,15 @@ run('follows the source opening without adding early legion branches', () => {
 run('removes the invented First Heretic to Know No Fear bridge', () => {
   const steps = getNextSteps('first-heretic', new Set(), 'reference')
   assert.equal(steps.some((step) => step.book?.id === 'know-no-fear'), false)
-  assert.deepEqual(steps.filter((step) => step.book).map((step) => step.book.id), ['battle-for-the-abyss', 'fear-to-tread'])
-  assert.equal(steps.some((step) => step.title === 'Aurelian (Book 35)' && !step.book), true)
+  assert.deepEqual(steps.filter((step) => step.book).map((step) => step.book.id), ['battle-for-the-abyss', 'aurelian', 'fear-to-tread'])
+  assert.equal(steps.some((step) => step.book?.id === 'aurelian' && step.book.kind === 'novella'), true)
   assert.equal(steps.every((step) => !('score' in step)), true)
 })
 
-run('retains missing short stories instead of bypassing them', () => {
+run('includes individual short stories without bypassing them', () => {
   const steps = getNextSteps('scars', new Set(), 'reference')
-  assert.deepEqual(steps.map((step) => step.title), ['Allegiance (Book 33)', 'Brotherhood of the Moon (Book 35)', 'Daemonology (Book 33)'])
-  assert.equal(steps.every((step) => !step.book && step.sourceUrl === reference.url), true)
+  assert.deepEqual(steps.map((step) => step.title), ['Allegiance', 'Brotherhood of the Moon', 'Daemonology'])
+  assert.equal(steps.every((step) => step.book?.kind === 'short-story' && step.sourceUrl === reference.url), true)
   assert.equal(getConnections('reference').some((edge) => edge.from === 'scars' && edge.to === 'path-of-heaven'), false)
 })
 
@@ -149,7 +149,7 @@ run('keeps campaign map book plates separate', () => {
   for (let index = 0; index < books.length; index++) {
     for (const other of books.slice(index + 1)) {
       const book = books[index]
-      const overlaps = book.x < other.x + 180 && book.x + 180 > other.x && book.y < other.y + 74 && book.y + 74 > other.y
+      const overlaps = book.x < other.x + NODE_WIDTH && book.x + NODE_WIDTH > other.x && book.y < other.y + NODE_HEIGHT && book.y + NODE_HEIGHT > other.y
       assert.equal(overlaps, false, `${book.id} overlaps ${other.id}`)
     }
   }
@@ -157,7 +157,7 @@ run('keeps campaign map book plates separate', () => {
 
 run('offers source browsing without unsupported story arc groups', () => {
   const page = renderToStaticMarkup(createElement(App))
-  assert.match(page, /Reference flowchart/)
+  assert.match(page, /Reference map — all stories/)
   assert.match(page, /Black Library: Horus Heresy Saga/)
   assert.match(page, /Book list/)
   assert.match(page, /Connection map/)
@@ -300,11 +300,11 @@ run('focuses only direct incoming and outgoing source connections', () => {
   const edges = getConnections('reference')
   const before = JSON.stringify(edges)
   const focused = getConnectionFocus(edges, 'know-no-fear')
-  assert.deepEqual([...focused.ids].sort(), ['know-no-fear', 'legion', 'battle-for-the-abyss', 'betrayer'].sort())
-  assert.equal(focused.edges.length, 3)
+  assert.deepEqual([...focused.ids].sort(), ['know-no-fear', 'legion', 'battle-for-the-abyss', 'betrayer', 'rules-of-engagement', 'honour-to-the-dead', 'macragge-s-honour', 'the-honoured', 'the-unburdened'].sort())
+  assert.equal(focused.edges.length, 8)
   assert.equal(focused.ids.has('first-heretic'), false)
-  assert.deepEqual([...getConnectionFocus(edges, 'mechanicum').ids], ['mechanicum'])
-  assert.equal(getConnectionFocus(edges, 'mechanicum').edges.length, 0)
+  assert.deepEqual([...getConnectionFocus(edges, 'mechanicum').ids].sort(), ['mechanicum', 'kaban-project', 'vorax', 'into-exile', 'cybernetica'].sort())
+  assert.equal(getConnectionFocus(edges, 'mechanicum').edges.length, 4)
   for (const option of ['saga', 'siege']) {
     const ids = option === 'saga' ? sagaBookIds : siegeBookIds
     assert.deepEqual([...getConnectionFocus(getConnections(option), ids[1]).ids].sort(), ids.slice(0, 3).sort())
@@ -339,6 +339,64 @@ run('finishing another book preserves the current position and reading option', 
   assert.deepEqual(next.readIds, ['horus-rising', 'legion'])
   assert.deepEqual(progress.readIds, ['horus-rising'])
   assert.deepEqual(toggleFinished(next, 'legion'), progress)
+})
+
+
+run('covers every reference node and resolved arrow with its own source identity', () => {
+  assert.equal(getOptionBooks('reference').length, 173)
+  assert.equal(Object.keys(referenceBookByNodeId).length, 173)
+  assert.equal(new Set(Object.values(referenceBookByNodeId).map((book) => book.id)).size, 173)
+  assert.equal(getConnections('reference').length, 192)
+  assert.equal(reference.unresolved.length, 2)
+  assert.equal(bookById['the-either-audio'].kind, 'audio-drama')
+  assert.equal(bookById['the-either-prose'].kind, 'short-story')
+})
+
+run('classifies prose works by publication records rather than audio availability or source shape', () => {
+  for (const id of ['brotherhood-of-the-storm', 'the-reflection-crack-d', 'wolf-king', 'the-crimson-fist', 'prince-of-crows', 'cybernetica', 'dreadwing']) {
+    assert.equal(bookById[id].kind, 'novella', id)
+  }
+  for (const id of ['titandeath', 'the-honoured', 'the-unburdened', 'garro']) assert.equal(bookById[id].kind, 'novel', id)
+  assert.equal(bookById['macragge-s-honour'].kind, 'graphic-novel')
+  assert.equal(bookById['perpetual'].kind, 'audio-drama')
+})
+
+run('novels-only hides supporting works while preserving the source graph and next steps', () => {
+  const novels = getOptionBooks('reference-novels')
+  assert.equal(novels.length, 41)
+  assert.equal(novels.every((book) => book.kind === 'novel'), true)
+  assert.equal(novels.some((book) => book.id === 'titandeath'), true)
+  assert.equal(novels.some((book) => book.id === 'aurelian'), false)
+  assert.deepEqual(getConnections('reference-novels'), getConnections('reference'))
+  assert.deepEqual(getNextSteps('scars', new Set(), 'reference-novels').map((step) => step.book.id), ['allegiance', 'brotherhood-of-the-moon', 'daemonology'])
+  assert.equal(getConnections('reference-novels').some((edge) => edge.from === 'scars' && edge.to === 'path-of-heaven'), false)
+})
+
+run('retains the novels-only selection and old book progress across reloads', () => {
+  const saved = { currentId: 'aurelian', readIds: ['horus-rising', 'aurelian'], readingOption: 'reference-novels' }
+  assert.deepEqual(parseProgress(JSON.parse(JSON.stringify(saved))), saved)
+})
+
+run('finishing a collection does not silently finish its individual works', () => {
+  const progress = { currentId: 'aurelian', readIds: [], readingOption: 'reference' }
+  const next = toggleFinished(progress, 'eye-of-terra')
+  assert.deepEqual(next.readIds, ['eye-of-terra'])
+  assert.equal(next.currentId, 'aurelian')
+  assert.equal(bookById['aurelian'].collectionNumber, 35)
+  assert.equal(bookById['garro-vow-of-faith'].collectionNumber, 42)
+})
+
+run('each map card provides a written type, symbol, and distinct supporting-work shape', () => {
+  const page = renderToStaticMarkup(createElement(App))
+  for (const book of getOptionBooks('reference')) {
+    const card = page.match(new RegExp(`<g[^>]*data-book-id="${book.id}"[^>]*>[\\s\\S]*?</g>`))?.[0]
+    assert.ok(card, book.id)
+    assert.match(card, /node-type-icon/)
+    assert.equal(card.includes('node-fold'), book.kind !== 'novel', book.id)
+    assert.ok(card.includes(`data-book-kind="${book.kind}"`), book.id)
+    const label = { novel: 'Novel', novella: 'Novella', anthology: 'Collection', 'short-story': 'Short story', 'audio-drama': 'Audio drama', 'graphic-novel': 'Graphic novel' }[book.kind]
+    assert.ok(card.includes(`>${label}`), book.id)
+  }
 })
 
 console.log('Source route and progress checks passed.')

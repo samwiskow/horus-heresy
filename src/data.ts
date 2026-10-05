@@ -1,4 +1,6 @@
-export type BookKind = 'novel' | 'anthology' | 'novella'
+import additions from './sources/reference-additions.json'
+
+export type BookKind = 'novel' | 'anthology' | 'novella' | 'short-story' | 'audio-drama' | 'graphic-novel'
 export type EdgeKind = 'reference' | 'sequence'
 
 export type Book = {
@@ -7,6 +9,10 @@ export type Book = {
   shortTitle: string
   kind: BookKind
   seriesNumber?: number
+  sourceId?: string
+  collectionNumber?: number
+  publication?: string
+  metadataSourceUrl?: string
   faction: string
   spoilerLevel: 'low' | 'medium' | 'high'
   summary: string
@@ -252,7 +258,7 @@ const bookSeeds: BookSeed[] = [
     summary: 'Corax’s stories trace the Raven Guard’s struggle to turn defeat into a weapon.',
   },
   {
-    id: 'garro', title: 'Garro', shortTitle: 'Garro', kind: 'anthology', seriesNumber: 42,
+    id: 'garro', title: 'Garro', shortTitle: 'Garro', kind: 'novel', seriesNumber: 42,
     faction: 'Knights-Errant', spoilerLevel: 'high',
     summary: 'Garro’s missions carry loyalist resolve across the scattered fronts of the Heresy.',
   },
@@ -338,11 +344,20 @@ const bookSeeds: BookSeed[] = [
   },
 ]
 
-export const books: Book[] = bookSeeds.map((book, index) => ({
+const sourceSeeds = additions.map((book) => ({ ...book, shortTitle: book.title, faction: '', spoilerLevel: 'low', summary: '' })) as BookSeed[]
+
+export const books: Book[] = [...bookSeeds, ...sourceSeeds].map((book, index) => ({
   ...book,
   x: 70 + (index % 6) * COLUMN_STEP,
   y: 100 + Math.floor(index / 6) * ROW_STEP,
 }))
 
 export const bookById = Object.fromEntries(books.map((book) => [book.id, book])) as Record<string, Book>
+
+export const referenceCollections: Record<number, { title: string; bookId?: string }> = Object.fromEntries([
+  ...bookSeeds.filter((book) => book.kind === 'anthology' || book.id === 'garro').map((book) => [book.seriesNumber, { title: book.title, bookId: book.id }]),
+  [48, { title: 'The Burden of Loyalty' }],
+  [50, { title: 'Born of Flame' }],
+  [52, { title: 'Heralds of the Siege' }],
+])
 import { COLUMN_STEP, ROW_STEP } from './map-layout'

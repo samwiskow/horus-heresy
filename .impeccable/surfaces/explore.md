@@ -14,11 +14,13 @@ Help the reader choose a next book and feel the scale of the branching story. Th
 - Highlight next paths is enabled by default and is independent of Focus connections. It marks outgoing arrows in red and lists their destinations. An explicit Book notes action opens the temporary side panel. Book indexes still open notes on selection.
 - Highlighted books keep solid plates and clear borders; other plates have reduced fill opacity. The map and book indexes keep their full width beneath the notes panel.
 - At widths of 760px or less, Expand map opens a screen-height map with separate Next paths and Focus connections controls and a selected-book bar. Back to map returns to the inline map. The duplicate map caption and rule are hidden to keep the zoom controls clear.
+- Reading option offers the complete reference and novels-only views, alongside Saga and Siege. The option persists across reloads and applies to map and list. A hidden-next-step notice reveals the complete reference. Focus connections explicitly includes supporting neighbours.
+- Novel cards are rounded; other types have a folded upper-right corner. A monochrome symbol and written label identify each of the six types. Cards have shared 220 by 110 bounds with room for three title lines. Source labels, eBook and exclusive descriptions, and collection links appear in Book notes.
 - Story summaries remain behind a disclosure with the spoiler level. Selected books expose reading actions and labelled connections.
 
 ## Product truth
 
-The catalogue and the selected reading source supply the books and connections. Source-flow positions arrange the graph for browsing; they add no connections, reading order, or story arc memberships. Missing catalogue stories remain links to the source and are not bypassed by map arrows. Siege of Terra remains a separate publisher option. Recommendations remain deterministic. Progress stays in local browser storage and can be exported from My library. The interface identifies itself as an unofficial guide and does not claim an exhaustive or official reading order.
+The catalogue and the selected reading source supply the books and connections. Source-flow positions arrange the graph for browsing; they add no connections, reading order, or story arc memberships. All 173 source nodes are represented. The two unresolved endpoints retain source links. Novels only hides supporting works without adding map arrows across them. Siege of Terra remains a separate publisher option. Recommendations remain deterministic. Progress stays in local browser storage and can be exported from My library. The interface identifies itself as an unofficial guide and does not claim an exhaustive or official reading order.
 
 ## Evidence and limits
 
