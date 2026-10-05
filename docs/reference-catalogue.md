@@ -75,9 +75,10 @@ position is preserved when another entry is finished.
 
 The source snapshot now retains each node's original bounds. The full map uses
 those centres with additional space for the 220 × 110 cards, expanding the
-horizontal distance by 2.75 and the vertical distance by 4. This preserves the
+horizontal distance by 2.35 and the vertical distance by 3. This preserves the
 original relative branch positions and gives the overview a mainly vertical
-shape. Novels only retains exactly the same positions for its visible works.
+shape. The Thirteenth Wolf is shifted 26 map units to the right to leave room
+beside Thief of Revelation for arrow routing. Novels only retains exactly the same positions for its visible works.
 Arrows retain their source endpoints; their bends are recalculated to avoid the
 larger cards. Focus connections keeps its compact local layout.
 

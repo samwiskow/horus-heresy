@@ -36,3 +36,17 @@ space for readable cards. Arrow bends are recalculated around the cards; their
 endpoints are unchanged. All stories and Novels only keep the same positions.
 The overview uses thin screen-sized strokes below 30% zoom. Focus connections
 keeps the previous compact local arrangement.
+
+## Spacing trial
+
+The first trial used 2.5 horizontally and 3.2 vertically: about 9% and 20%
+less distance than the earlier 2.75 by 4 layout. The central paths still looked
+too spread out at 90% zoom, so a second trial used 2.35 by 3: about 15% less
+horizontal distance and 25% less vertical distance. Card sizes are unchanged.
+The Thirteenth Wolf has a 26-unit horizontal clearance adjustment beside
+Thief of Revelation. Both views retain these positions.
+
+`spacing-first-detail.png` and `spacing-first-overview.png` record the first
+trial. `spacing-detail.png` and `spacing-audio-pair.png` show the final spacing
+at normal zoom. `vertical-overview.png` and `mobile-overview.png` show the
+final full-map arrangement. Phone evidence uses browser viewport emulation.

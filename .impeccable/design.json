@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-05T13:18:52.087434Z",
+  "generatedAt": "2026-10-05T18:46:43.446100Z",
   "title": "Design System: Pathfinder",
   "extensions": {
     "colorMeta": {
@@ -212,7 +212,7 @@
       },
       {
         "name": "The Reference Layout Rule",
-        "body": "Use original source node centres for the full reference, expanded 2.75 horizontally and 4 vertically to fit the larger cards. Keep positions stable across All stories and Novels only. Preserve arrow endpoints and route bends around the cards. Keep Focus connections compact. Below 30% zoom, retain thin screen-sized arrow and card strokes.",
+        "body": "Use original source node centres for the full reference, expanded 2.35 horizontally and 3 vertically to fit the larger cards. Shift The Thirteenth Wolf 26 map units right to leave arrow clearance beside Thief of Revelation. Keep positions stable across All stories and Novels only. Preserve arrow endpoints and route bends around the cards. Keep Focus connections compact. Below 30% zoom, retain thin screen-sized arrow and card strokes.",
         "section": "layout"
       }
     ],

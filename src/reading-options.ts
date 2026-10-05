@@ -61,8 +61,8 @@ const referenceCentres = reference.nodes.map((node) => ({
 const referenceLeft = Math.min(...referenceCentres.map((point) => point.x))
 const referenceTop = Math.min(...referenceCentres.map((point) => point.y))
 export const referencePositions = Object.fromEntries(referenceCentres.map((point) => [point.id, {
-  x: 70 + (point.x - referenceLeft) * 2.75,
-  y: 100 + (point.y - referenceTop) * 4,
+  x: 70 + (point.x - referenceLeft) * 2.35 + (point.id === 'the-thirteenth-wolf' ? 26 : 0),
+  y: 100 + (point.y - referenceTop) * 3,
 }]))
 
 const referenceConnections: Connection[] = reference.connections.flatMap((edge) => {

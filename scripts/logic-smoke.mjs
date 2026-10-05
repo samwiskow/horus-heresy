@@ -261,7 +261,9 @@ run('retains the reference branch arrangement in a mainly vertical map', () => {
   assert.ok(placed['solar-war'].y > Math.max(...items.filter((book) => book.id !== 'solar-war').map((book) => book.y)))
   const width = Math.max(...items.map((book) => book.x)) - Math.min(...items.map((book) => book.x)) + NODE_WIDTH
   const height = Math.max(...items.map((book) => book.y)) - Math.min(...items.map((book) => book.y)) + NODE_HEIGHT
-  assert.ok(height > width * 1.25)
+  assert.ok(height > width * 1.1)
+  assert.equal(placed['thief-of-revelation'].y, placed['the-thirteenth-wolf'].y)
+  assert.ok(placed['the-thirteenth-wolf'].x - placed['thief-of-revelation'].x - NODE_WIDTH >= 28)
   const novels = layoutSourceFlow(getOptionBooks('reference-novels'), getConnections('reference-novels'), referencePositions)
   for (const book of novels) assert.deepEqual([book.x, book.y], [placed[book.id].x, placed[book.id].y])
   for (const node of reference.nodes) assert.equal(node.bounds.length, 4)
