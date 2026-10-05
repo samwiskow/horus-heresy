@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-05T18:46:43.446100Z",
+  "generatedAt": "2026-10-05T19:39:29.295063Z",
   "title": "Design System: Pathfinder",
   "extensions": {
     "colorMeta": {
@@ -212,7 +212,7 @@
       },
       {
         "name": "The Reference Layout Rule",
-        "body": "Use original source node centres for the full reference, expanded 2.35 horizontally and 3 vertically to fit the larger cards. Shift The Thirteenth Wolf 26 map units right to leave arrow clearance beside Thief of Revelation. Keep positions stable across All stories and Novels only. Preserve arrow endpoints and route bends around the cards. Keep Focus connections compact. Below 30% zoom, retain thin screen-sized arrow and card strokes.",
+        "body": "Use original source node centres for the full reference, expanded 2.35 horizontally and 3 vertically to fit the larger cards. Shift The Thirteenth Wolf 26 map units right to leave arrow clearance beside Thief of Revelation. Move the branch section up by 400 map units to shorten the gap below the four-book opening, keeping positions within the branches unchanged. Keep positions stable across All stories and Novels only. Preserve arrow endpoints and route bends around the cards. Keep Focus connections compact. Below 30% zoom, retain thin screen-sized arrow and card strokes.",
         "section": "layout"
       }
     ],

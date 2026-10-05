@@ -249,6 +249,15 @@ run('places the reference opening above every parallel stream', () => {
   }
 })
 
+run('keeps the opening row close to the parallel branches with room for arrows', () => {
+  const items = layoutSourceFlow(getOptionBooks('reference'), getConnections('reference'), referencePositions)
+  const openingIds = ['horus-rising', 'false-gods', 'galaxy-in-flames', 'flight-eisenstein']
+  const openingBottom = Math.max(...items.filter((book) => openingIds.includes(book.id)).map((book) => book.y + NODE_HEIGHT))
+  const branchTop = Math.min(...items.filter((book) => !openingIds.includes(book.id)).map((book) => book.y))
+  assert.ok(branchTop - openingBottom >= 48)
+  assert.ok(branchTop - openingBottom <= 100)
+})
+
 run('retains the reference branch arrangement in a mainly vertical map', () => {
   const items = layoutSourceFlow(getOptionBooks('reference'), getConnections('reference'), referencePositions)
   const placed = Object.fromEntries(items.map((book) => [book.id, book]))
@@ -261,7 +270,7 @@ run('retains the reference branch arrangement in a mainly vertical map', () => {
   assert.ok(placed['solar-war'].y > Math.max(...items.filter((book) => book.id !== 'solar-war').map((book) => book.y)))
   const width = Math.max(...items.map((book) => book.x)) - Math.min(...items.map((book) => book.x)) + NODE_WIDTH
   const height = Math.max(...items.map((book) => book.y)) - Math.min(...items.map((book) => book.y)) + NODE_HEIGHT
-  assert.ok(height > width * 1.1)
+  assert.ok(height > width)
   assert.equal(placed['thief-of-revelation'].y, placed['the-thirteenth-wolf'].y)
   assert.ok(placed['the-thirteenth-wolf'].x - placed['thief-of-revelation'].x - NODE_WIDTH >= 28)
   const novels = layoutSourceFlow(getOptionBooks('reference-novels'), getConnections('reference-novels'), referencePositions)

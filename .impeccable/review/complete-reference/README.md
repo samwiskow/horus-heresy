@@ -9,16 +9,18 @@ physical-device test. Desktop uses 1440 × 1080; 900 × 1000 was also checked.
 
 - `desktop.png`: full desktop page and reference dropdown.
 - `vertical-overview.png`: complete map with the source branch arrangement.
+- `opening-gap-40-percent.png`: shorter opening gap at the user’s zoom level.
+- `opening-gap-phone.png`: updated full-map overview at a phone viewport.
 - `mobile-overview.png`: the same overview at a phone viewport.
 - `card-types.png`: novel and novella cards, source arrows, and type symbols.
 - `graphic-and-audio.png`: graphic novel and audio drama cards.
 - `mobile.png`: full phone page.
 - `mobile-expanded.png`: expanded phone map and return control.
-- `browser-checks.json`: 16 passing browser checks, including saved progress,
+- `browser-checks.json`: 17 passing browser checks, including saved progress,
   independent completion, hidden-story navigation, filters, keyboard selection,
   fixed reference positions when supporting works are hidden, and the unchanged publisher lists.
 
-`pnpm test` passed all 37 route, layout, catalogue, and progress checks.
+`pnpm test` passed all 38 route, layout, catalogue, and progress checks.
 `pnpm build` passed TypeScript and the production build. A source reimport matched
 the saved reference JSON, including its original arrows and unresolved endpoints.
 `git diff --check` passed.
@@ -50,3 +52,9 @@ Thief of Revelation. Both views retain these positions.
 trial. `spacing-detail.png` and `spacing-audio-pair.png` show the final spacing
 at normal zoom. `vertical-overview.png` and `mobile-overview.png` show the
 final full-map arrangement. Phone evidence uses browser viewport emulation.
+
+The branch section moves upward by 400 map units to shorten the opening gap.
+The gap before Fulgrim falls from 763 to 363 map units. Positions within the
+branches and all arrow endpoints remain unchanged. The nearest branch card
+leaves 69 map units below the opening cards. The layout and browser checks
+verify this space and preserve clearance for all 192 arrow routes.

@@ -1,6 +1,7 @@
 {
   "browser": "Installed Google Chrome, headless",
   "checks": [
+    "Opening row has a compact gap with room for arrows",
     "Complete map: 173 nodes",
     "Novels only: 41 novels with hidden-step notice",
     "Filter applies to list and persists with old progress",
