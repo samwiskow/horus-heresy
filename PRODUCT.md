@@ -24,17 +24,19 @@ This is a stateful reading companion rather than a static chronology: the graph 
 
 ## Operating Context
 
-The reader explores a dense flowchart, searches for a book or legion, selects a book for context, marks progress, and returns later to continue their route. The first version is local-first and personal; progress must survive reloads and remain exportable in a portable format.
+The reader explores a dense flowchart, searches for a title or legion, selects a book for context, marks progress, and returns later to continue their route. The first version is local-first and personal; progress must survive reloads and remain exportable in a portable format.
 
 ## Capabilities and Constraints
 
 - Explore is the core exploration surface: browse a book list, search, filter the onward route, inspect books, and follow source arrows on the Connection map. The four-book reference opening flows left to right above the parallel streams; other connections flow from top to bottom. Connection map opens first, with Book list available through a visible tab. The reading option and search are shared across tabs. Focus connections shows the selected book and its direct incoming and outgoing source links, including catalogue neighbours excluded by filters; turning it off restores the full-map position and zoom. Highlight next paths is independent and enabled by default. Reference titles are alphabetical; Saga retains the publisher's listed order.
+- Reading option includes Reference map — all stories and Reference map — novels only, plus the separate publisher Saga and Siege choices. The selected option is saved with existing progress. Focus connections can explicitly reveal supporting neighbours from the novels view.
+- Cards pair a type symbol with a written label. Novels retain rounded cards; other types have a folded corner. Publication and availability descriptions remain in notes. Collection completion does not complete its individual stories.
 - Colour marks copy the fill and outline from the reference book plates. They appear in the map and book lists beside visible faction names. Books absent from the reference have no mark; colours do not define legion or story arc memberships.
 - No story arc memberships are assigned. The reference uses coloured branches but does not supply named memberships that can be reproduced without interpretation. The app does not infer arcs from colours, factions, or shared arrows. Map positions are for browsing only.
-- Reading connections follow Daunt’s reference flowchart, version 0.9. Each map arrow has a source identifier. The app does not add connections or rank source branches. Missing catalogue stories remain source links instead of being bypassed.
+- Reading connections follow Daunt’s reference flowchart, version 0.9. Each map arrow has a source identifier. The app does not add connections or rank source branches. The two unresolved source endpoints remain links to the original. Novels only hides other work types without adding bridges.
 - Black Library: Horus Heresy Saga is a separate 12-book option in the publisher’s listed order. It stops at Slaves to Darkness. Route selection is saved; finished books and the current reading position are shared.
 - Siege of Terra is a separate publisher option at the end of Explore. It follows Black Library's numbered main series, with all three parts of book 8. The 2019 reference stops at The Solar War; its unresolved endpoint and the twelve-book Saga selection remain unchanged.
-- The first data set is core novels plus a curated set of important supporting stories, not an attempt to encode every short story immediately.
+- The Reference map covers all 173 connected nodes and 192 resolved arrows in the 2019 source. The catalogue contains 195 entries, including separate prose and audio appearances of The Either. It does not claim to include every Horus Heresy publication.
 - Publication order, in-universe chronology, and recommended reading order are separate concepts.
 - The experience should be spoiler-aware and avoid presenting one universal path as objectively correct.
 - No accounts, server-side progress, or AI recommendation system are required for the first experiment.

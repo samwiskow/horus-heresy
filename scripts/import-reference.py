@@ -23,10 +23,18 @@ for item in model.find('root'):
     geometry = cell.find('mxGeometry')
     title = ' '.join(html.unescape(re.sub('<[^>]+>', ' ', attributes.get('label', attributes.get('value', '')))).split())
     if attributes.get('vertex') == '1' and title:
+        style = attributes.get('style', '')
+        styles = dict(part.split('=', 1) for part in style.split(';') if '=' in part)
+        shape = styles.get('shape')
+        category = 'audio-drama' if style.startswith('ellipse;') else 'graphic-novel' if shape == 'hexagon' else 'exclusive-story' if shape == 'note' else 'story' if shape == 'card' else 'book'
         nodes[attributes['id']] = {
             'id': attributes['id'],
             'title': title,
             'bounds': [float(geometry.get(key, 0)) for key in ('x', 'y', 'width', 'height')],
+            'fill': styles.get('fillColor', '#FFFFFF'),
+            'stroke': styles.get('strokeColor', '#000000'),
+            'category': category,
+            **({'sourceLink': attributes['link']} if attributes.get('link') else {}),
         }
     if attributes.get('edge') == '1' and 'endArrow=none' not in attributes.get('style', ''):
         edges.append((attributes, geometry))
@@ -65,7 +73,7 @@ snapshot = {
     'modified': file.get('modified'),
     'retrieved': sys.argv[3],
     'sha256': hashlib.sha256(source).hexdigest(),
-    'nodes': [{key: value for key, value in node.items() if key != 'bounds'} for node in nodes.values() if node['id'] in used],
+    'nodes': [node for node in nodes.values() if node['id'] in used],
     'connections': connections,
     'unresolved': unresolved,
 }

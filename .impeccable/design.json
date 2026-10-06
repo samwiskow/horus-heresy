@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-23T10:05:27Z",
+  "generatedAt": "2026-10-05T19:39:29.295063Z",
   "title": "Design System: Pathfinder",
   "extensions": {
     "colorMeta": {
@@ -46,10 +46,6 @@
         "displayName": "Reading title",
         "purpose": "Current and recommended books."
       },
-      "atlas-title": {
-        "displayName": "Atlas title",
-        "purpose": "Compact Explore heading above the map."
-      },
       "notes-title": {
         "displayName": "Notes title",
         "purpose": "Selected book in the notes panel."
@@ -69,18 +65,38 @@
       "control": {
         "displayName": "Control text",
         "purpose": "Actions and select controls."
+      },
+      "map-title": {
+        "displayName": "Map title",
+        "purpose": "Up to three lines of a source work title."
+      },
+      "map-type": {
+        "displayName": "Map type",
+        "purpose": "Written work type paired with a monochrome symbol."
+      },
+      "map-source-label": {
+        "displayName": "Map source label",
+        "purpose": "Recorded faction or source publication number."
+      },
+      "note": {
+        "displayName": "Note",
+        "purpose": "Source, publication, and collection descriptions."
+      },
+      "compact-control": {
+        "displayName": "Compact control",
+        "purpose": "Map control and count labels."
       }
     },
     "shadows": [
       {
         "name": "book-notes",
         "value": "-12px 0 30px rgba(48, 46, 41, .14)",
-        "purpose": "Separate temporary book notes from the map or index."
+        "purpose": "Separate temporary book notes from the map or list."
       },
       {
-        "name": "atlas-overview",
-        "value": "0 5px 18px rgba(48, 46, 41, .12)",
-        "purpose": "Keep the small map overview legible over story lanes."
+        "name": "highlighted-map-card",
+        "value": "0 3px 5px rgba(48, 46, 41, .18)",
+        "purpose": "Lift highlighted source cards slightly above the map."
       }
     ],
     "motion": [
@@ -131,28 +147,42 @@
       "kind": "input",
       "refersTo": "search-field",
       "description": "Searches titles or legions.",
-      "html": "<label class=\"ds-search\"><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"10\" cy=\"10\" r=\"6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"m15 15 5 5\" stroke=\"currentColor\" stroke-width=\"2\"/></svg><input aria-label=\"Search books or legions\" placeholder=\"Find a book or legion\"></label>",
+      "html": "<label class=\"ds-search\"><svg width=\"17\" height=\"17\" viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"10\" cy=\"10\" r=\"6\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"m15 15 5 5\" stroke=\"currentColor\" stroke-width=\"2\"/></svg><input aria-label=\"Search titles or legions\" placeholder=\"Find a title or legion\"></label>",
       "css": ".ds-search{display:flex;align-items:center;gap:10px;color:var(--muted);}.ds-search input{min-width:0;width:100%;height:44px;border:0;background:transparent;color:var(--ink);font-size:14px;font-family:'Avenir Next','Segoe UI',sans-serif;}.ds-search input::placeholder{color:var(--muted);}.ds-search:focus-within{outline:2px solid var(--accent);outline-offset:2px;}.ds-search input:focus-visible{outline:none;}"
     },
     {
       "name": "Primary navigation",
       "kind": "nav",
-      "description": "The three main reading views.",
-      "html": "<nav class=\"ds-nav\" aria-label=\"Primary navigation\"><button aria-current=\"page\">Explore</button><button>Story arcs</button><button>My library</button></nav>",
+      "description": "Explore and My library.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Primary navigation\"><button aria-current=\"page\">Explore</button><button>My library</button></nav>",
       "css": ".ds-nav{display:flex;gap:27px;border-bottom:1px solid var(--line);}.ds-nav button{min-height:44px;padding:0 1px;border:0;border-bottom:2px solid transparent;background:none;color:var(--muted);font-size:14px;cursor:pointer;font-family:'Avenir Next','Segoe UI',sans-serif;}.ds-nav button[aria-current]{color:var(--accent);border-bottom-color:var(--accent);}.ds-nav button:hover{color:var(--accent);}.ds-nav button:focus-visible{outline:2px solid var(--accent);outline-offset:4px;}"
     },
     {
       "name": "Selected book row",
       "kind": "custom",
       "refersTo": "book-row-selected",
-      "description": "A book in the linear browsing alternative.",
-      "html": "<div class=\"ds-row\"><span>01</span><button aria-pressed=\"true\"><strong>Horus Rising</strong><small>The Warmaster\u2019s fall</small></button><span>Reading</span></div>",
+      "description": "A work in the linear browsing alternative.",
+      "html": "<div class=\"ds-row\"><span>01</span><button aria-pressed=\"true\"><strong>Horus Rising</strong><small>Novel</small></button><span>Reading</span></div>",
       "css": ".ds-row{display:grid;grid-template-columns:29px minmax(0,1fr) 82px;align-items:center;gap:10px;min-height:76px;padding:8px;border-bottom:1px solid var(--line);background:var(--selected);color:var(--muted);font-size:12px;font-family:'Avenir Next','Segoe UI',sans-serif;}.ds-row button{text-align:left;padding:6px 0;border:0;background:none;color:var(--ink);cursor:pointer;}.ds-row strong{display:block;font:400 15px/1.45 var(--serif);}.ds-row small{display:block;margin-top:4px;color:var(--muted);font-size:11px;font-family:'Avenir Next','Segoe UI',sans-serif;}.ds-row button:hover strong{color:var(--accent);}.ds-row button:focus-visible{outline:2px solid var(--accent);outline-offset:4px;}"
+    },
+    {
+      "name": "Novel map card",
+      "kind": "custom",
+      "description": "Rounded novel card with type symbol and written label.",
+      "html": "<svg width=\"220\" height=\"110\" viewBox=\"0 0 220 110\"><rect class=\"ds-map-plate\" x=\"1\" y=\"1\" width=\"218\" height=\"108\" rx=\"12\"/><text class=\"ds-map-title\" x=\"16\" y=\"42\">Horus Rising</text><g class=\"ds-map-type\"><path d=\"M16 88h5l2 2 2-2h5v12h-5l-2 2-2-2h-5z M23 90v12\"/><text x=\"35\" y=\"99\">Novel · 01</text></g></svg>",
+      "css": ".ds-map-plate{fill:var(--sheet);stroke:#8d877b}.ds-map-title{fill:var(--ink);font:13px var(--serif)}.ds-map-type path{fill:none;stroke:var(--muted);stroke-width:1.5}.ds-map-type text{fill:var(--muted);font:10px sans-serif}"
+    },
+    {
+      "name": "Supporting work map card",
+      "kind": "custom",
+      "description": "Folded corner for every non-novel type; labels distinguish the individual types.",
+      "html": "<svg width=\"220\" height=\"110\" viewBox=\"0 0 220 110\"><path class=\"ds-map-plate\" d=\"M12 1H200L219 20V98Q219 109 208 109H12Q1 109 1 98V12Q1 1 12 1Z\"/><path class=\"ds-map-fold\" d=\"M200 1V20H219\"/><text class=\"ds-map-title\" x=\"16\" y=\"42\">Aurelian</text><g class=\"ds-map-type\"><path d=\"M18 88h11v13H18z M15 90h5 M15 94h5 M15 98h5\"/><text x=\"35\" y=\"99\">Novella</text></g></svg>",
+      "css": ".ds-map-plate{fill:var(--sheet);stroke:#8d877b}.ds-map-fold{fill:none;stroke:#8d877b}.ds-map-title{fill:var(--ink);font:13px var(--serif)}.ds-map-type path{fill:none;stroke:var(--muted);stroke-width:1.5}.ds-map-type text{fill:var(--muted);font:10px sans-serif}"
     }
   ],
   "narrative": {
     "northStar": "Annotated edition",
-    "overview": "Pathfinder uses warm paper, charcoal text, serif book titles, and small red annotations. A compact reading route leads into a full-width story atlas with a small overview of its arcs. Book notes open when a reader selects a book, leaving the map and indexes room to breathe. Rules and open space separate content; sans-serif controls remain clear.",
+    "overview": "Pathfinder uses warm paper, charcoal text, serif titles, and muted red annotations. Explore provides a complete reference map and a novels-only view, with separate publisher routes. Each card has a type symbol and label; supporting works have a folded corner. Source arrows retain their recorded endpoints. Book notes show publication details and collection links without inventing plot summaries or story arcs.",
     "keyCharacteristics": [
       "Warm off-white surfaces and charcoal text.",
       "Self-hosted serif book titles with sans-serif controls.",
@@ -174,6 +204,16 @@
         "name": "The Book Title Rule",
         "body": "Use serif text for book names. Keep controls in sans-serif so actions remain easy to identify.",
         "section": "typography"
+      },
+      {
+        "name": "The Work Type Rule",
+        "body": "Use a symbol and written type label on each card. Novels have rounded corners; other types have a folded corner. Keep publication medium and availability in notes.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Reference Layout Rule",
+        "body": "Use original source node centres for the full reference, expanded 2.35 horizontally and 3 vertically to fit the larger cards. Shift The Thirteenth Wolf 26 map units right to leave arrow clearance beside Thief of Revelation. Move the branch section up by 400 map units to shorten the gap below the four-book opening, keeping positions within the branches unchanged. Keep positions stable across All stories and Novels only. Preserve arrow endpoints and route bends around the cards. Keep Focus connections compact. Below 30% zoom, retain thin screen-sized arrow and card strokes.",
+        "section": "layout"
       }
     ],
     "dos": [

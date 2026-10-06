@@ -25,11 +25,6 @@ typography:
     fontWeight: 400
     lineHeight: 1.25
     letterSpacing: "-.025em"
-  atlas-title:
-    fontFamily: "Libre Baskerville, Georgia, serif"
-    fontSize: "clamp(25px, 2.3vw, 32px)"
-    fontWeight: 400
-    letterSpacing: "-.025em"
   notes-title:
     fontFamily: "Libre Baskerville, Georgia, serif"
     fontSize: "26px"
@@ -53,6 +48,22 @@ typography:
   control:
     fontFamily: "Avenir Next, Segoe UI, sans-serif"
     fontSize: "13px"
+  map-title:
+    fontFamily: "Libre Baskerville, Georgia, serif"
+    fontSize: "13px"
+    fontWeight: 400
+  map-type:
+    fontFamily: "Avenir Next, Segoe UI, sans-serif"
+    fontSize: "10px"
+  map-source-label:
+    fontFamily: "Avenir Next, Segoe UI, sans-serif"
+    fontSize: "8px"
+  note:
+    fontFamily: "Avenir Next, Segoe UI, sans-serif"
+    fontSize: "12px"
+  compact-control:
+    fontFamily: "Avenir Next, Segoe UI, sans-serif"
+    fontSize: "11px"
   navigation:
     fontFamily: "Avenir Next, Segoe UI, sans-serif"
     fontSize: "14px"
@@ -164,17 +175,17 @@ Book titles and page titles use the serif. Navigation, metadata, descriptions, a
 
 The shell has a maximum width (1800px). Desktop content uses generous side margins. Explore starts with a compact reading route, then gives the map the full content width and a height tied to the viewport. At (1100px), margins reduce to (28px) and toolbars wrap. Book notes open in a temporary side panel from the Book notes action or a book index, so the map and book index retain their full width.
 
-At (760px), navigation moves below the brand and content becomes one column. Connection map opens first, with Book list available through a visible tab; Expand map opens a screen-height map with a clear return to the inline map and a selected-book bar. Book notes cover the screen after the Book notes action or list selection and can be closed to return to the map or list. The full-width Story arcs and My library indexes use two book columns on desktop and one on mobile.
+At (760px), navigation moves below the brand and content becomes one column. Connection map opens first, with Book list available through a visible tab; Expand map opens a screen-height map with a clear return to the inline map and a selected-book bar. Book notes cover the screen after the Book notes action or list selection and can be closed to return to the map or list. My library uses two columns on desktop and one on mobile.
 
 Content groups use rules and space rather than separate cards for each item. Lists align book number, title, state, and action in columns. Preserve room for long titles and wrapping actions.
 
 ## Elevation & Depth
 
-Paper and sheet tones, thin borders, and selected fills provide most depth. A soft offset shadow separates the temporary book-notes panel and atlas overview from the content beneath them. The map key overlays the map area with a sheet background and a rule border.
+Paper and sheet tones, thin borders, and selected fills provide most depth. A soft offset shadow separates the temporary book-notes panel from the content beneath it. Highlighted map cards use a small offset shadow. The map key overlays the map area with a sheet background and a rule border.
 
 ## Shapes
 
-Primary and quiet actions and select inputs have small corners. Other sections are mostly square and separated by straight rules. Map nodes retain the geometry of each map view; do not promote the campaign node notch into a general interface motif.
+Primary and quiet actions and select inputs have small corners. Other sections are mostly square and separated by straight rules. Novel map cards have rounded corners. Every other type has a folded upper-right corner within the same bounds. Type symbols and written labels identify Novel, Novella, Short story, Audio drama, Graphic novel, and Collection. Card shape expresses work type independently of reading status and source colour.
 
 ## Components
 
@@ -194,15 +205,15 @@ Active navigation uses red text and a thin red underline. Inactive navigation us
 
 ### Book Rows
 
-Book rows use a bottom rule and a selected-paper fill when selected. Serif titles lead, with arc metadata beneath. State is written as Finished, Reading, or Unread; an icon action can change the finished state. Rows have a minimum height (76px).
+Book rows use a bottom rule and a selected-paper fill when selected. Serif titles lead, with the work type and any recorded faction beneath. State is written as Finished, Reading, or Unread; an icon action can change the finished state. Rows have a minimum height (76px).
 
 ### Book Notes
 
-Notes use an italic serif heading and a larger serif book title. Reading actions precede expandable story notes. Spoiler level appears in the disclosure label. Connections remain labelled as direct continuations, prerequisites, parallel stories, or optional stories. Map selection traces next paths, and an explicit Book notes action opens the temporary panel. Book indexes still open notes on selection. The map or list keeps its place beneath the panel.
+Notes use an italic serif heading and a larger serif book title. Reading actions precede expandable story notes. Spoiler level appears in the disclosure label. Connections are labelled as Reference arrow or Publisher’s listed order. No relationship meaning is added beyond the source. Map selection traces next paths, and an explicit Book notes action opens the temporary panel. Book indexes still open notes on selection. The map or list keeps its place beneath the panel.
 
 ### Story Maps
 
-The Connection map uses sheet surfaces, compact book plates, source colour marks, and a four-book reference opening that runs left to right above the parallel streams. Other arrows run from top to bottom. Solid, bold, and dashed lines distinguish relationship types. Selected, current, finished, and recommended states use borders, fills, and symbols. Focus connections fits the selected book and its direct incoming and outgoing source links; turning it off restores the full-map position and zoom. Highlight next paths is enabled by default and independently marks outgoing arrows in red and lists their destinations. Highlighted books keep solid plates and clear borders; other plates have reduced fill opacity. The full map opens around the selected book at (90%) when fitting all visible books would reduce the scale below (60%); Fit all provides an overview. The map legend explains these marks in plain language. Positions do not define an additional reading order or story arc memberships. The only explicit transition is the flow edge stroke change (180ms ease-out); reduced-motion preferences disable transitions.
+The Connection map uses sheet surfaces, compact book plates, source colour marks, and a four-book reference opening that runs left to right above the parallel streams. The full reference uses the source node centres, expanded by 2.35 horizontally and 3 vertically to fit the larger cards. The Thirteenth Wolf has a 26-unit horizontal clearance adjustment beside Thief of Revelation. The branch section moves up by 400 map units to shorten the gap below the four-book opening; positions within the branches stay unchanged. Branch positions remain stable across All stories and Novels only. Source arrows may run sideways or join distant branches; their routes avoid card plates. Focus connections uses a compact local layout. Reference arrows and adjacent publisher entries use the same line treatment; the selected source supplies their meaning. Selected, current, finished, and recommended states use borders, fills, and symbols. Cards are 220 by 110 map units, with up to three title lines. Each has a monochrome type symbol and written type label. The full title remains in the accessible label and notes. The Reading option dropdown offers Reference map — all stories, Reference map — novels only, Saga, and Siege. All stories is the default. Novels only filters the map and list without joining across hidden works; a hidden-next-step notice offers Show all stories. Focus connections explicitly reveals all direct neighbours, including works hidden by Novels only. Publication format and availability stay in the notes. Focus connections fits the selected book and its direct incoming and outgoing source links; turning it off restores the full-map position and zoom. Highlight next paths is enabled by default and independently marks outgoing arrows in red and lists their destinations. Highlighted books keep solid plates and clear borders; other plates have reduced fill opacity. The full map opens around the selected book at (90%) when fitting all visible books would reduce the scale below (60%); Fit all provides an overview. Below 30% zoom, arrows and card borders retain thin screen-sized strokes so the branch arrangement remains visible. The map legend explains these marks in plain language. Positions do not define an additional reading order or story arc memberships. The only explicit transition is the flow edge stroke change (180ms ease-out); reduced-motion preferences disable transitions.
 
 ## Do's and Don'ts
 
