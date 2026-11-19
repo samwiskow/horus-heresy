@@ -12,9 +12,10 @@ and the book numbers on its product pages. The ten main volumes are books
 1–7 and the three parts of book 8. Each product URL and number is recorded
 in `src/sources/siege-of-terra.json`.
 
-Explore ends with a Siege of Terra section that opens this separate reading
-option. The source choice is explicit. It does not add guessed arrows to
-Daunt's diagram or append books to the publisher's twelve-book Saga selection.
+At The Solar War, Explore offers a switch to this separate reading option. The
+Book list opens at book 1 while browsing or reading it, or the next unfinished
+volume after the reader finishes it. The switch preserves the reader's current
+book and finished marks.
 
 The route follows the numbered main series. It does not assign a position to
 supporting novellas or anthologies. Those remain available through the

@@ -5,7 +5,7 @@ import { App } from '../src/App.tsx'
 import { bookById, books } from '../src/data.ts'
 import { getEdgeRoute, getConnectionFocus, layoutSourceFlow, NODE_WIDTH, NODE_HEIGHT, ROW_STEP } from '../src/map-layout.ts'
 import { getDirectionalBook, revealMapBook } from '../src/map-keyboard.ts'
-import { getReachableBookIds, getNextSteps } from '../src/logic.ts'
+import { getReachableBookIds, getNextSteps, getSiegeHandoff } from '../src/logic.ts'
 import { getConnections, reference, referenceBookByNodeId, referenceNodeByBookId, referencePositions, getOptionBooks, sagaBookIds, siegeBookIds, siegeBookNumbers } from '../src/reading-options.ts'
 import { parseProgress, toggleFinished } from '../src/progress.ts'
 
@@ -112,6 +112,28 @@ run('finished books advance only through source connections', () => {
   assert.equal(reachable.has('galaxy-in-flames'), true)
 })
 
+run('finds the Eisenstein branches and records when an unfinished work is reached through Fulgrim', () => {
+  const initial = getNextSteps('flight-eisenstein', new Set(), 'reference')
+  assert.deepEqual(initial.flatMap((step) => step.book ? [step.book.id] : []).sort(), [
+    'child-of-night', 'fulgrim', 'garro-ashes-of-fealty', 'the-crimson-fist', 'the-last-remembrancer', 'the-purge', 'thousand-sons',
+  ])
+  assert.equal(initial.filter((step) => !step.book).length, 1)
+  assert.equal(initial.some((step) => step.via), false)
+  const afterFulgrim = getNextSteps('flight-eisenstein', new Set(['fulgrim']), 'reference-novels')
+  assert.equal(afterFulgrim.find((step) => step.book?.id === 'first-heretic')?.via?.id, 'fulgrim')
+  assert.equal(afterFulgrim.find((step) => step.book?.id === 'thousand-sons')?.via, undefined)
+})
+
+run('opens the shared first Siege book or continues to the next unfinished numbered volume', () => {
+  assert.equal(getSiegeHandoff('solar-war', new Set()).destination.id, 'solar-war')
+  assert.equal(getSiegeHandoff('flight-eisenstein', new Set(['solar-war'])).destination.id, 'solar-war')
+  assert.equal(getSiegeHandoff('solar-war', new Set(['solar-war'])).destination.id, 'lost-and-damned')
+  assert.equal(getSiegeHandoff('solar-war', new Set(['solar-war', 'lost-and-damned'])).destination.id, 'first-wall')
+  const finished = getSiegeHandoff('solar-war', new Set(siegeBookIds))
+  assert.equal(finished.complete, true)
+  assert.equal(finished.destination.id, 'solar-war')
+})
+
 run('follows the publisher’s numbered Siege series through all three final volumes', () => {
   const expected = ['solar-war', 'lost-and-damned', 'first-wall', 'saturnine', 'mortis', 'warhawk', 'echoes-of-eternity', 'end-and-death-i', 'end-and-death-ii', 'end-and-death-iii']
   assert.deepEqual(siegeBookIds, expected)
@@ -162,8 +184,7 @@ run('offers source browsing without unsupported story arc groups', () => {
   assert.match(page, /Black Library: Horus Heresy Saga/)
   assert.match(page, /Book list/)
   assert.match(page, /Connection map/)
-  assert.match(page, /Siege of Terra continuation/)
-  assert.match(page, /Explore Siege of Terra/)
+  assert.match(page, /Black Library: Siege of Terra/)
   assert.doesNotMatch(page, /Legions in collision|Loyalist convergence|The Warmaster ascendant|Arc lanes|aria-label="Story arc"|>Story arcs</)
 })
 

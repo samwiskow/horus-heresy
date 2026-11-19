@@ -5,6 +5,7 @@ export type ReadingStep = {
   id: string
   title: string
   book?: Book
+  via?: Book
   explanation: string
   sourceUrl: string
 }
@@ -26,17 +27,25 @@ export function getNextSteps(currentId: string | null, readIds: Set<string>, opt
     const from = queue.shift()!
     if (visited.has(from)) continue
     visited.add(from)
+    const via = from === node.id ? undefined : referenceBookByNodeId[from]
     for (const edge of reference.connections.filter((edge) => edge.from === from)) {
       const target = reference.nodes.find((node) => node.id === edge.to)!
       const book = referenceBookByNodeId[target.id]
       if (book && readIds.has(book.id)) queue.push(target.id)
-      else if (book?.id !== currentId) steps.set(target.id, { id: target.id, title: book?.title ?? target.title, book, explanation: book ? 'Connected in the reference flowchart; choices have no app ranking.' : 'Outside this catalogue. Follow this step in the original flowchart.', sourceUrl: reference.url })
+      else if (book?.id !== currentId && !steps.has(target.id)) steps.set(target.id, { id: target.id, title: book?.title ?? target.title, book, via, explanation: book ? 'Connected in the reference flowchart; choices have no app ranking.' : 'Outside this catalogue. Follow this step in the original flowchart.', sourceUrl: reference.url })
     }
     for (const edge of reference.unresolved.filter((edge) => edge.from === from)) {
-      steps.set(edge.id, { id: edge.id, title: 'Continue in the original flowchart', explanation: 'This arrow has no attached destination in the source data. Check the original drawing.', sourceUrl: reference.url })
+      steps.set(edge.id, { id: edge.id, title: 'Continue in the original flowchart', via, explanation: 'This arrow has no attached destination in the source data. Check the original drawing.', sourceUrl: reference.url })
     }
   }
   return [...steps.values()]
+}
+
+export function getSiegeHandoff(currentId: string, readIds: Set<string>) {
+  const [startId] = getSequenceBookIds('siege')
+  const finishedStart = currentId === startId && readIds.has(startId)
+  const next = finishedStart ? getNextSteps(startId, readIds, 'siege')[0]?.book : undefined
+  return { destination: next ?? bookById[startId], complete: finishedStart && !next }
 }
 
 export function getReachableBookIds(currentId: string | null, readIds: Set<string>, option: ReadingOption) {
