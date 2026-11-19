@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { ArrowUpRight, BookOpen, Check, Download, Map, Minus, Plus, RotateCcw, Search, Target, X, ArrowRight, List } from 'lucide-react'
 import { bookById, books, referenceCollections, type Book, type Connection } from './data'
-import { parseProgress, toggleFinished, type Progress } from './progress'
+import { parseProgress, readingStatus, toggleFinished, type Progress } from './progress'
 import { getConnections, getOptionBooks, getSequenceBookIds, isReference, readingOptions, referenceNodeByBookId, referencePositions, siegeBookIds, siegeBookNumbers, type ReadingOption } from './reading-options'
 import { BookType, bookTypes } from './book-types'
 import { getReachableBookIds, getNextSteps, getSiegeHandoff } from './logic'
@@ -271,10 +271,13 @@ function MapCanvas({
 
 type BookActions = { readingOption: ReadingOption; readIds: Set<string>; currentId: string; onRead: (id: string) => void; onCurrent: (id: string) => void }
 
-function ReadingActions({ book, readIds, currentId, onRead, onCurrent }: BookActions & { book: Book }) {
+function ReadingActions({ book, readIds, currentId, onRead, onCurrent, list = false, notes = false }: BookActions & { book: Book; list?: boolean; notes?: boolean }) {
+  const status = readingStatus(book.id, readIds, currentId)
+  const finishLabel = status === 'Finished' ? 'Mark unread' : 'Mark finished'
   return <div className="book-actions">
-    <button className="primary-action" onClick={() => onCurrent(book.id)} disabled={currentId === book.id}><BookOpen size={16} />{currentId === book.id ? 'Currently reading' : 'Read this next'}</button>
-    <button className="quiet-action" aria-pressed={readIds.has(book.id)} onClick={() => onRead(book.id)}>{readIds.has(book.id) ? <RotateCcw size={16} /> : <Check size={16} />}{readIds.has(book.id) ? 'Mark unread' : 'Mark finished'}</button>
+    {status === 'Unread' && <button className={list ? 'text-action' : 'primary-action'} aria-label={`Start reading ${book.title}`} onClick={() => onCurrent(book.id)}>Start reading</button>}
+    {notes && status === 'Finished' && book.id !== currentId && <button className="text-action" onClick={() => onCurrent(book.id)}>Continue from here</button>}
+    <button className="quiet-action" aria-label={`${finishLabel}: ${book.title}`} onClick={() => onRead(book.id)}>{finishLabel}</button>
   </div>
 }
 
@@ -294,7 +297,7 @@ function BookNotes({ book, onSelect, onClose, onSiege, ...actions }: BookActions
     <h3>{book.title}</h3>
     {book.faction && <p className="faction-name">{book.faction}</p>}
     <p className="book-status">{actions.readIds.has(book.id) ? <Check size={15} /> : <BookOpen size={15} />}{actions.readIds.has(book.id) ? 'Finished' : book.id === actions.currentId ? 'Currently reading' : 'Unread'}</p>
-    <ReadingActions book={book} {...actions} />
+    <ReadingActions book={book} notes {...actions} />
     {collection && <p className="publication-note">{book.collectionNumber === 42 ? 'Adapted in' : 'Collected in'} {collection.bookId ? <button className="text-action" onClick={() => onSelect(bookById[collection.bookId!])}>{collection.title}</button> : <a href={referenceNode.sourceLink} target="_blank" rel="noreferrer">{collection.title} <ArrowUpRight size={12} /></a>} · Book {book.collectionNumber}. Completion is tracked separately.</p>}
     {book.publication && <p className="publication-note">{book.publication}</p>}
     {book.sourceId && <p className="publication-note">Source label: {referenceNode.title}. {book.metadataSourceUrl && <a href={book.metadataSourceUrl} target="_blank" rel="noreferrer">Publication record <ArrowUpRight size={12} /></a>}</p>}
@@ -311,9 +314,11 @@ function BookList({ items, selectedId, onSelect, sequence = false, ...actions }:
   const orderedIds = getSequenceBookIds(actions.readingOption)
   return <ol className="book-list">{items.map((book) => <li key={book.id} data-book-id={book.id} className={selectedId === book.id ? 'selected' : ''}>
     <span className="book-number" aria-label={sequence ? `List position ${orderedIds.indexOf(book.id) + 1}` : undefined}>{sequence ? String(orderedIds.indexOf(book.id) + 1).padStart(2, '0') : book.seriesNumber ? String(book.seriesNumber).padStart(2, '0') : '—'}</span>
-    <button className="list-book" aria-pressed={selectedId === book.id} onClick={() => onSelect(book)}><strong>{referenceNodeByBookId[book.id] && <svg className="reference-colour-mark" width="14" height="14" aria-hidden="true"><rect x="0.5" y="0.5" width="13" height="13" fill={referenceNodeByBookId[book.id].fill} stroke={referenceNodeByBookId[book.id].stroke} /></svg>}{book.title}</strong><span>{book.faction && `${book.faction} · `}<BookType kind={book.kind} />{actions.readingOption === 'siege' && siegeBookNumbers[book.id] ? ` · Siege book ${siegeBookNumbers[book.id]}` : ''}</span></button>
-    <span className="list-status">{actions.readIds.has(book.id) ? <><Check size={15} />Finished</> : book.id === actions.currentId ? <><BookOpen size={15} />Reading</> : 'Unread'}</span>
-    <button className="icon-button" aria-label={`${actions.readIds.has(book.id) ? 'Mark unread' : 'Mark finished'}: ${book.title}`} aria-pressed={actions.readIds.has(book.id)} onClick={() => actions.onRead(book.id)}>{actions.readIds.has(book.id) ? <RotateCcw size={17} /> : <Check size={17} />}</button>
+    <div className="list-entry">
+      <button className="list-book" aria-pressed={selectedId === book.id} onClick={() => onSelect(book)}><strong>{referenceNodeByBookId[book.id] && <svg className="reference-colour-mark" width="14" height="14" aria-hidden="true"><rect x="0.5" y="0.5" width="13" height="13" fill={referenceNodeByBookId[book.id].fill} stroke={referenceNodeByBookId[book.id].stroke} /></svg>}{book.title}</strong><span>{book.faction && `${book.faction} · `}<BookType kind={book.kind} />{actions.readingOption === 'siege' && siegeBookNumbers[book.id] ? ` · Siege book ${siegeBookNumbers[book.id]}` : ''}</span></button>
+      <span className="list-status">{readingStatus(book.id, actions.readIds, actions.currentId)}</span>
+    </div>
+    <ReadingActions book={book} list {...actions} />
   </li>)}</ol>
 }
 
@@ -331,6 +336,8 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
   const mobileMapToggleRef = useRef<HTMLButtonElement>(null)
   const mapCloseRef = useRef<HTMLButtonElement>(null)
   const notesTrigger = useRef<HTMLElement | null>(null)
+  const selectedBook = bookById[selectedId]
+  const selectedStatus = readingStatus(selectedId, readIds, currentId)
   const source = readingOptions[readingOption]
   const referenceOption = isReference(readingOption)
   const siegeStartId = siegeBookIds[0]
@@ -469,7 +476,7 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
             <button className="book-heading" onClick={() => revealBook(recommended.book!)}>{recommended.title}</button>
             <p>{recommended.via ? <>Via <i>{recommended.via.title}</i> in Daunt’s flowchart.</> : recommended.explanation}</p>
             <div className="next-actions">
-              <button className="quiet-action" onClick={() => { onCurrent(recommended.book!.id); revealBook(recommended.book!) }}>Start reading <ArrowRight size={16} /></button>
+              <button className="quiet-action" onClick={() => onCurrent(recommended.book!.id)}>Start reading <ArrowRight size={16} /></button>
               <button className="text-action" onClick={() => { setMode('map'); setFullMobileMap(true); revealBook(recommended.book!, false) }}>Show on map</button>
             </div>
           </> : showReadingChoices ? <div className="branch-decision">
@@ -523,10 +530,13 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
         <HiddenPaths count={hiddenSteps.length} onShowAll={() => onOption('reference')} />}
       <div role="tabpanel" id="view-panel-map" aria-labelledby="view-tab-map" tabIndex={0} hidden={mode !== 'map'}>
         <div className="next-paths">
-          <strong aria-live="polite">Selected: {bookById[selectedId].title}</strong>
+          <strong aria-live="polite">Selected: {selectedBook.title}</strong>
           {renderMapPathAction('map')}
           {mapSiegeAction}
-          <button className="text-action path-notes-action" onClick={openNotes}>Book notes <ArrowRight size={15} /></button>
+          <div className="map-reading-actions">
+            <ReadingActions book={selectedBook} {...actions} />
+            <button className="text-action path-notes-action" onClick={openNotes}>Book notes <ArrowRight size={15} /></button>
+          </div>
         </div>
         {renderMapPathChoices('map')}
         {selectedId !== currentId && (selectedCanHandoff || !highlightPaths) && <SourcePathNotes steps={selectedSourceSteps} />}
@@ -546,16 +556,24 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
               focusConnections={focusConnections} connections={mapConnections} recommendedIds={new Set(bookSteps.map(({ book }) => book.id))}
               onSelect={selectAtlasBook}
             />
-            <div className="map-selected-mobile">
-              <div className="map-selected-heading">
-                <span><small>Selected book</small><strong>{bookById[selectedId].title}</strong></span>
-                <button className="quiet-action" onClick={openNotes}>Book notes</button>
-              </div>
-              <div className="map-selected-branches">
-                {renderMapPathAction('expanded')}
-                {mapSiegeAction}
-              </div>
-              <div className="expanded-paths">{renderMapPathChoices('expanded')}</div>
+            {(singleMapBook || canCompareMap || selectedCanHandoff) && <div className="expanded-paths" onKeyDown={(event) => {
+              if (event.key !== 'Escape' || chooser !== 'expanded') return
+              event.stopPropagation()
+              setChooser(null)
+              event.currentTarget.querySelector('button')?.focus()
+            }}>
+              {renderMapPathAction('expanded')}
+              {mapSiegeAction}
+              {renderMapPathChoices('expanded')}
+            </div>}
+            <div className="map-selected-mobile" role="group" aria-label="Selected book" onClickCapture={() => {
+              setChooser((open) => open === 'expanded' ? null : open)
+            }}>
+              <button type="button" className="map-reading-notes" aria-label={`Book notes for ${selectedBook.title}, ${selectedStatus.toLowerCase()}`} onClick={openNotes}>
+                <strong>{selectedBook.title}</strong>
+                <small><span>{selectedStatus} · </span>Notes <ArrowUpRight size={11} aria-hidden="true" /></small>
+              </button>
+              <ReadingActions book={selectedBook} {...actions} />
             </div>
           </div>
         </>}
@@ -603,17 +621,68 @@ export function App() {
   const [notice, setNotice] = useState('')
   const [storageError, setStorageError] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
-  const [undo, setUndo] = useState<Progress | null>(null)
+  const [undo, setUndo] = useState<{ progress: Progress; message: string } | null>(null)
+  const progressTrigger = useRef<{ button: HTMLButtonElement; label: string; surface: Element | null; bookId?: string; keyboard: boolean } | null>(null)
+  const undoButton = useRef<HTMLButtonElement>(null)
+  const showProgressNotice = undo !== null && notice === undo.message
   const readIds = useMemo(() => new Set(progress.readIds), [progress.readIds])
   useEffect(() => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(progress)); setStorageError(false) } catch { setStorageError(true) } }, [progress])
-  const onRead = (id: string) => { setUndo(progress); setProgress(toggleFinished(progress, id)); setNotice(`${bookById[id].title} marked ${readIds.has(id) ? 'unread' : 'finished'}.`) }
-  const onCurrent = (id: string) => { setUndo(progress); setProgress({ ...progress, currentId: id }); setSelectedId(id); setNotice(`Now reading ${bookById[id].title}.`) }
+  useEffect(() => {
+    if (showProgressNotice && progressTrigger.current && (progressTrigger.current.keyboard || document.activeElement === document.body)) {
+      undoButton.current?.focus({ preventScroll: true })
+    }
+  }, [undo, showProgressNotice])
+  const changeProgress = (next: Progress, message: string) => {
+    const button = document.activeElement
+    progressTrigger.current = button instanceof HTMLButtonElement ? {
+      button,
+      label: button.getAttribute('aria-label') || button.textContent.trim(),
+      surface: button.closest('.reading-desk, .map-reading-actions, .map-selected-mobile, #view-panel-list, .collection-books, .book-notes, .library-tools'),
+      bookId: button.closest<HTMLElement>('li[data-book-id]')?.dataset.bookId,
+      keyboard: button.matches(':focus-visible'),
+    } : null
+    setUndo({ progress, message })
+    setProgress(next)
+    setNotice(message)
+  }
+  const onRead = (id: string) => changeProgress(toggleFinished(progress, id), `${bookById[id].title} marked ${readIds.has(id) ? 'unread' : 'finished'}.`)
+  const onCurrent = (id: string) => {
+    changeProgress({ ...progress, currentId: id }, readIds.has(id) ? `Reading position set to ${bookById[id].title}.` : `Now reading ${bookById[id].title}.`)
+    setSelectedId(id)
+  }
+  const restoreProgressFocus = () => {
+    requestAnimationFrame(() => {
+      const trigger = progressTrigger.current
+      const group = trigger?.bookId ? trigger.surface?.querySelector(`[data-book-id="${trigger.bookId}"]`) : trigger?.surface
+      const buttons = Array.from(group?.querySelectorAll('button') || [])
+      const restored = buttons.find((button) => (button.getAttribute('aria-label') || button.textContent.trim()) === trigger?.label)
+      const mapNotes = document.querySelector<HTMLElement>('.mobile-expanded .map-reading-notes')
+      const currentPage = document.querySelector<HTMLElement>('.primary-nav [aria-current="page"]')
+      const target = [trigger?.button, restored, ...buttons, mapNotes, currentPage].find((element) => element?.getClientRects().length)
+      target?.focus({ preventScroll: true })
+    })
+  }
+  const undoProgress = () => {
+    if (!undo) return
+    setProgress({ ...undo.progress, readingOption: progress.readingOption })
+    setUndo(null)
+    setNotice('Last progress change undone.')
+    restoreProgressFocus()
+  }
   const onOption = (option: ReadingOption) => { setProgress((saved) => ({ ...saved, readingOption: option })); setNotice(`Reading option: ${readingOptions[option].label}.`) }
   const onSelect = (book: Book) => { setSelectedId(book.id); setNotice(`Selected: ${book.title}.`) }
   const exportRoute = () => { const url = URL.createObjectURL(new Blob([JSON.stringify(progress, null, 2)], { type: 'application/json' })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'heresy-pathfinder-route.json'; anchor.click(); URL.revokeObjectURL(url); setNotice('Reading progress exported.') }
   return <div className="app-shell"><a className="skip-link" href="#main">Skip to content</a><header className="topbar"><button className="brand-lockup" onClick={() => setView('map')} aria-label="Pathfinder home"><BookOpen size={25} strokeWidth={1.3} /><span>Pathfinder<small>A Horus Heresy reading companion</small></span></button><nav className="primary-nav" aria-label="Primary navigation">{([['map', 'Explore'], ['library', 'My library']] as const).map(([id, label]) => <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav><div className="header-progress"><span>{readIds.size} / {books.length} finished</span><progress aria-label="Works finished" value={readIds.size} max={books.length} /></div></header>
     <main id="main">{storageError && <div className="storage-error" role="alert">Your browser could not save progress. Keep this page open and <button onClick={exportRoute}>export your progress</button>.</div>}{view === 'map' ? <Explore readingOption={progress.readingOption} onOption={onOption} selectedId={selectedId} onSelect={onSelect} currentId={progress.currentId} readIds={readIds} onRead={onRead} onCurrent={onCurrent} /> : <Collection readingOption={progress.readingOption} selectedId={selectedId} onSelect={onSelect} currentId={progress.currentId} readIds={readIds} onRead={onRead} onCurrent={onCurrent} />}
-      <div className="notice-bar"><span role="status" aria-live="polite">{notice || 'Progress is saved on this device.'}</span>{undo && <button className="text-action" onClick={() => { setProgress({ ...undo, readingOption: progress.readingOption }); setUndo(null); setNotice('Last progress change undone.') }}>Undo</button>}</div>
-      {view === 'library' && <div className="library-tools"><button className="quiet-action" onClick={exportRoute}><Download size={16} />Export progress</button>{confirmReset ? <div className="reset-confirm"><span>Clear all reading progress?</span><button className="quiet-action" onClick={() => { setUndo(progress); setProgress({ ...progress, readIds: [], currentId: 'horus-rising' }); setSelectedId('horus-rising'); setConfirmReset(false); setNotice('Progress cleared. You can undo this change.') }}>Clear progress</button><button className="text-action" onClick={() => setConfirmReset(false)}>Cancel</button></div> : <button className="text-action" onClick={() => setConfirmReset(true)}>Reset progress</button>}</div>}
+      <div className={showProgressNotice ? 'progress-notice' : 'notice-bar'} onKeyDown={(event) => {
+        if (event.key !== 'Escape' || !showProgressNotice) return
+        event.stopPropagation()
+        setNotice('')
+        restoreProgressFocus()
+      }}>
+        <span role="status">{notice || 'Progress is saved on this device.'}</span>
+        {undo && <button ref={undoButton} className="text-action" onClick={undoProgress}>Undo</button>}
+      </div>
+      {view === 'library' && <div className="library-tools"><button className="quiet-action" onClick={exportRoute}><Download size={16} />Export progress</button>{confirmReset ? <div className="reset-confirm"><span>Clear all reading progress?</span><button className="quiet-action" onClick={() => { changeProgress({ ...progress, readIds: [], currentId: 'horus-rising' }, 'Progress cleared.'); setSelectedId('horus-rising'); setConfirmReset(false) }}>Clear progress</button><button className="text-action" onClick={() => setConfirmReset(false)}>Cancel</button></div> : <button className="text-action" onClick={() => setConfirmReset(true)}>Reset progress</button>}</div>}
     </main><footer className="site-footer"><span>Pathfinder <span className="footer-divider">/</span> An unofficial companion to source reading guides</span><div><a href="https://www.kylebb.com/HH/HHSeriesOrder.svg" target="_blank" rel="noreferrer">Reference flowchart <ArrowUpRight size={13} /></a><a href="https://gaming.kylebb.com/hhtimeline/" target="_blank" rel="noreferrer">Reading timeline <ArrowUpRight size={13} /></a></div></footer></div>
 }

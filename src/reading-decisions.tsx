@@ -2,6 +2,7 @@ import { ArrowRight, ArrowUpRight, ChevronDown } from 'lucide-react'
 import { BookType } from './book-types'
 import { referenceCollections, type Book } from './data'
 import type { getSiegeHandoff, ReadingStep } from './logic'
+import { readingStatus } from './progress'
 import { readingOptions, siegeBookIds, siegeBookNumbers, siegeBookUrls } from './reading-options'
 
 type PathChoice = { book: Book; via?: Book }
@@ -39,7 +40,7 @@ export function PathChoices({ id, open, choices, sourceSteps, readIds, currentId
   return <div className="path-chooser" id={id}>
     {choices.length > 0 && <ul aria-label="Path choices">
       {[...choices].sort((a, b) => a.book.title.localeCompare(b.book.title)).map(({ book, via }) => {
-        const finished = readIds.has(book.id)
+        const status = readingStatus(book.id, readIds, currentId)
         const collection = book.collectionNumber ? referenceCollections[book.collectionNumber] : undefined
         return <li key={book.id}><button type="button" className="path-choice" onClick={() => onChoose(book)}>
           <span className="path-choice-content">
@@ -51,7 +52,7 @@ export function PathChoices({ id, open, choices, sourceSteps, readIds, currentId
               {via && <span>Via <i>{via.title}</i></span>}
             </span>
           </span>
-          <span className={finished ? 'path-status finished' : 'path-status'}>{finished ? 'Finished' : book.id === currentId ? 'Reading' : 'Unread'}</span>
+          <span className={status === 'Finished' ? 'path-status finished' : 'path-status'}>{status}</span>
           <ArrowRight className="path-arrow" size={15} aria-hidden="true" />
         </button></li>
       })}
