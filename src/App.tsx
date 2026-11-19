@@ -6,7 +6,7 @@ import { parseProgress, toggleFinished, type Progress } from './progress'
 import { getConnections, getOptionBooks, getSequenceBookIds, isReference, readingOptions, referenceNodeByBookId, referencePositions, siegeBookNumbers, type ReadingOption } from './reading-options'
 import { BookType, bookTypes } from './book-types'
 import { getReachableBookIds, getNextSteps } from './logic'
-import { FocusDialog, restoreFocus, useMobileLayout } from './focus'
+import { FocusDialog, isMobileLayout, restoreFocus, useMobileLayout } from './focus'
 import { getDirectionalBook, isMapDirection, revealMapBook, type MapView } from './map-keyboard'
 import { edgePath, getEdgeRoute, getConnectionFocus, layoutSourceFlow, NODE_WIDTH, NODE_HEIGHT } from './map-layout'
 
@@ -151,6 +151,7 @@ function MapCanvas({
   const previousLayout = useRef<{ size: typeof size; visibleKey: string; focusConnections: boolean } | null>(null)
   const lastFocusRevision = useRef(0)
   const { zoom, pan } = view
+  const pointerBook = useRef<string | null>(null)
   const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
   const visibleKey = visibleBooks.map((book) => [book.id, book.x, book.y].join(':')).join('|')
   const visibleIds = new Set(visibleBooks.map((book) => book.id))
@@ -181,9 +182,13 @@ function MapCanvas({
       left: Math.max(0, bounds.left), top: Math.max(0, bounds.top),
       right: Math.min(document.documentElement.clientWidth, bounds.right), bottom: Math.min(innerHeight, bounds.bottom),
     })
-    const overlays = [...(svg.closest('.atlas-map')?.querySelectorAll([
-      '.map-controls', '.map-hint', '.map-key[open] > div', '.map-fullscreen-close', '.map-highlight-mobile', '.map-selected-mobile',
-    ].join(',')) ?? [])].filter((element) => element.getClientRects().length).map((element) => toMap(element.getBoundingClientRect()))
+    const mapOverlays = svg.closest('.atlas-map')?.querySelectorAll([
+      '.map-controls', '.map-hint', '.map-key[open] > div', '.map-fullscreen-close', '.map-highlight-mobile',
+      '.map-selected-mobile', '.mobile-next-books', '.mobile-next-books[open] > div',
+    ].join(','))
+    const overlays = [...(mapOverlays ?? []), document.querySelector('.progress-notice')]
+      .filter((element) => element?.getClientRects().length && getComputedStyle(element).visibility !== 'hidden')
+      .map((element) => toMap(element!.getBoundingClientRect()))
     const notes = document.querySelector('aside.book-notes')
     if (notes) {
       const notesRect = toMap(notes.getBoundingClientRect())
@@ -253,8 +258,13 @@ function MapCanvas({
     })
   }
 
+  const rememberPointerBook = (target: EventTarget) => {
+    pointerBook.current = (target as Element).closest('.map-node')?.getAttribute('data-book-id') ?? null
+  }
+
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
-    if ((event.target as Element).closest('[role=button]')) return
+    rememberPointerBook(event.target)
+    if (pointerBook.current) return
     drag.current = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y }
     event.currentTarget.setPointerCapture(event.pointerId)
   }
@@ -265,7 +275,10 @@ function MapCanvas({
     const scale = Math.max(size.width / bounds.width, size.height / bounds.height)
     setView((current) => ({ ...current, pan: { x: start.panX + (event.clientX - start.x) * scale, y: start.panY + (event.clientY - start.y) * scale } }))
   }
-  const stopDrag = () => { drag.current = null }
+  const stopDrag = () => {
+    drag.current = null
+    pointerBook.current = null
+  }
 
   return (
     <div className={`map-canvas-shell ${highlightPaths ? 'paths-highlighted' : ''} ${zoom < 0.3 ? 'map-overview' : ''}`} ref={shellRef}>
@@ -275,8 +288,11 @@ function MapCanvas({
         viewBox={`0 0 ${size.width || 1000} ${size.height || 600}`}
         role="group" aria-label="Connection map cards" aria-describedby={hintId}
         onPointerDown={handlePointerDown}
+        onMouseDown={(event) => rememberPointerBook(event.target)}
+        onMouseUp={() => { pointerBook.current = null }}
         onPointerMove={handlePointerMove}
         onPointerUp={stopDrag}
+        onPointerCancel={stopDrag}
         onPointerLeave={stopDrag}
       >
         <defs>
@@ -304,7 +320,10 @@ function MapCanvas({
           {visibleBooks.map((book) => <BookNode key={book.id} book={book} selected={selectedId === book.id} active={tabStop === book.id}
             zoom={zoom} selectedDescription={selectionId} dimmed={Boolean(focusId) && !focusedBookIds.has(book.id)}
             readIds={readIds} currentId={currentId} recommended={recommendedIds.has(book.id)}
-            onFocus={() => { setKeyboardBookId(book.id); revealFocus(book) }}
+            onFocus={() => {
+              setKeyboardBookId(book.id)
+              if (pointerBook.current !== book.id) revealFocus(book)
+            }}
             onKeyDown={(event) => moveFocus(event, book)} onSelect={() => { setKeyboardBookId(book.id); onSelect(book) }} />)}
         </g>
       </svg>
@@ -324,18 +343,28 @@ function MapCanvas({
   )
 }
 
+type ProgressNotice = (inDialog?: boolean) => ReactNode
+
 type BookActions = { readingOption: ReadingOption; readIds: Set<string>; currentId: string; onRead: (id: string) => void; onCurrent: (id: string) => void }
 
-function ReadingActions({ book, readIds, currentId, onRead, onCurrent }: BookActions & { book: Book }) {
+function readingStatus(id: string, readIds: Set<string>, currentId: string) {
+  return readIds.has(id) ? 'Finished' : id === currentId ? 'Reading' : 'Unread'
+}
+
+function ReadingActions({ book, readIds, currentId, onRead, onCurrent, list = false, notes = false }: BookActions & { book: Book; list?: boolean; notes?: boolean }) {
+  const status = readingStatus(book.id, readIds, currentId)
+  const finishLabel = status === 'Finished' ? 'Mark unread' : 'Mark finished'
   return <div className="book-actions">
-    <button className="primary-action" onClick={() => onCurrent(book.id)} disabled={currentId === book.id}><BookOpen size={16} />{currentId === book.id ? 'Currently reading' : 'Read this next'}</button>
-    <button className="quiet-action" aria-pressed={readIds.has(book.id)} onClick={() => onRead(book.id)}>{readIds.has(book.id) ? <RotateCcw size={16} /> : <Check size={16} />}{readIds.has(book.id) ? 'Mark unread' : 'Mark finished'}</button>
+    {status === 'Unread' && <button className={list ? 'text-action' : 'primary-action'} aria-label={`Start reading ${book.title}`} onClick={() => onCurrent(book.id)}>Start reading</button>}
+    {notes && status === 'Finished' && book.id !== currentId && <button className="text-action" onClick={() => onCurrent(book.id)}>Continue from here</button>}
+    <button className="quiet-action" aria-label={`${finishLabel}: ${book.title}`} onClick={() => onRead(book.id)}>{finishLabel}</button>
   </div>
 }
 
-function BookNotes({ book, mobile, onSelect, onClose, ...actions }: BookActions & {
+function BookNotes({ book, mobile, notice, onSelect, onClose, ...actions }: BookActions & {
   book: Book
   mobile: boolean
+  notice?: ReactNode
   onSelect: (book: Book) => void
   onClose: (restore?: boolean) => void
 }) {
@@ -348,15 +377,29 @@ function BookNotes({ book, mobile, onSelect, onClose, ...actions }: BookActions 
   useEffect(() => {
     if (mobile) return
     const panel = titleRef.current!.closest('.book-notes')!
-    const dismissIfCovered = (event: FocusEvent) => {
-      const target = event.target
-      if (!(target instanceof Element) || panel.contains(target) || target.closest('.map-node')) return
+    const dismissIfCovered = (target: EventTarget | null) => {
+      if (!(target instanceof Element) || panel.contains(target) || target.closest('.map-node, .progress-notice')) return
       const rect = target.getBoundingClientRect()
       const notes = panel.getBoundingClientRect()
       if (rect.width && rect.right > notes.left && rect.left < notes.right) onClose(false)
     }
-    document.addEventListener('focusin', dismissIfCovered)
-    return () => document.removeEventListener('focusin', dismissIfCovered)
+    const dismissOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      event.preventDefault()
+      onClose(panel.contains(document.activeElement))
+    }
+    const dismissOnFocus = (event: FocusEvent) => dismissIfCovered(event.target)
+    const dismissOnResize = () => {
+      if (!isMobileLayout()) dismissIfCovered(document.activeElement)
+    }
+    document.addEventListener('focusin', dismissOnFocus)
+    document.addEventListener('keydown', dismissOnEscape)
+    window.addEventListener('resize', dismissOnResize)
+    return () => {
+      document.removeEventListener('focusin', dismissOnFocus)
+      document.removeEventListener('keydown', dismissOnEscape)
+      window.removeEventListener('resize', dismissOnResize)
+    }
   }, [mobile, onClose])
   const connections = getConnections(actions.readingOption)
   const source = readingOptions[actions.readingOption]
@@ -371,8 +414,8 @@ function BookNotes({ book, mobile, onSelect, onClose, ...actions }: BookActions 
     <div className="book-reference">{actions.readingOption === 'siege' && siegeBookNumbers[book.id] ? `Siege book ${siegeBookNumbers[book.id]}` : book.seriesNumber ? `Book ${String(book.seriesNumber).padStart(2, '0')}` : 'Supporting story'} <BookType kind={book.kind} /></div>
     <h3 ref={titleRef} tabIndex={-1} data-initial-focus>{book.title}</h3>
     {book.faction && <p className="faction-name">{book.faction}</p>}
-    <p className="book-status" role={mobile ? 'status' : undefined}>{actions.readIds.has(book.id) ? <Check size={15} /> : <BookOpen size={15} />}{actions.readIds.has(book.id) ? 'Finished' : book.id === actions.currentId ? 'Currently reading' : 'Unread'}</p>
-    <ReadingActions book={book} {...actions} onCurrent={(id) => { actions.onCurrent(id); titleRef.current?.focus() }} />
+    <p className="book-status">{actions.readIds.has(book.id) ? <Check size={15} /> : <BookOpen size={15} />}{actions.readIds.has(book.id) ? 'Finished' : book.id === actions.currentId ? 'Currently reading' : 'Unread'}</p>
+    <ReadingActions book={book} notes {...actions} />
     {collection && <p className="publication-note">{book.collectionNumber === 42 ? 'Adapted in' : 'Collected in'} {collection.bookId ? <button className="text-action" onClick={() => onSelect(bookById[collection.bookId!])}>{collection.title}</button> : <a href={referenceNode.sourceLink} target="_blank" rel="noreferrer">{collection.title} <ArrowUpRight size={12} /></a>} · Book {book.collectionNumber}. Completion is tracked separately.</p>}
     {book.publication && <p className="publication-note">{book.publication}</p>}
     {book.sourceId && <p className="publication-note">Source label: {referenceNode.title}. {book.metadataSourceUrl && <a href={book.metadataSourceUrl} target="_blank" rel="noreferrer">Publication record <ArrowUpRight size={12} /></a>}</p>}
@@ -383,12 +426,8 @@ function BookNotes({ book, mobile, onSelect, onClose, ...actions }: BookActions 
     <p className="curation-note">No story arc is assigned in this catalogue. Connections follow <a href={source.sourceUrl} target="_blank" rel="noreferrer">{source.label}</a>. Missing steps are not joined across.</p>
   </>
   return mobile
-    ? <FocusDialog label="Book notes" className="book-notes" onClose={onClose}>{content}</FocusDialog>
-    : <aside className="book-notes" aria-label="Book notes" onKeyDown={(event) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return
-      event.preventDefault()
-      onClose()
-    }}>{content}</aside>
+    ? <FocusDialog label="Book notes" className="book-notes" onClose={onClose}>{content}{notice}</FocusDialog>
+    : <aside className="book-notes" aria-label="Book notes">{content}</aside>
 }
 
 function useBookNotes(fallback: () => HTMLElement | SVGElement | null) {
@@ -417,32 +456,39 @@ function BookList({ items, selectedId, onSelect, mobile, sequence = false, ...ac
   const orderedIds = getSequenceBookIds(actions.readingOption)
   return <ol className="book-list">{items.map((book) => <li key={book.id} data-book-id={book.id} className={selectedId === book.id ? 'selected' : ''}>
     <span className="book-number" aria-label={sequence ? `List position ${orderedIds.indexOf(book.id) + 1}` : undefined}>{sequence ? String(orderedIds.indexOf(book.id) + 1).padStart(2, '0') : book.seriesNumber ? String(book.seriesNumber).padStart(2, '0') : '—'}</span>
-    <button className="list-book" aria-haspopup={mobile ? 'dialog' : undefined}
-      aria-describedby={statusPrefix + book.id} onClick={(event) => onSelect(book, event.currentTarget)}><strong>{referenceNodeByBookId[book.id] && <svg className="reference-colour-mark" width="14" height="14" aria-hidden="true"><rect x="0.5" y="0.5" width="13" height="13" fill={referenceNodeByBookId[book.id].fill} stroke={referenceNodeByBookId[book.id].stroke} /></svg>}{book.title}</strong><span>{book.faction && `${book.faction} · `}<BookType kind={book.kind} />{actions.readingOption === 'siege' && siegeBookNumbers[book.id] ? ` · Siege book ${siegeBookNumbers[book.id]}` : ''}</span></button>
-    <span className="list-status" id={statusPrefix + book.id}>{actions.readIds.has(book.id) ? <><Check size={15} />Finished</> : book.id === actions.currentId ? <><BookOpen size={15} />Reading</> : 'Unread'}{selectedId === book.id && <span className="sr-only">. Selected for Book notes.</span>}</span>
-    <button className="icon-button" aria-label={`${actions.readIds.has(book.id) ? 'Mark unread' : 'Mark finished'}: ${book.title}`} aria-pressed={actions.readIds.has(book.id)} onClick={() => actions.onRead(book.id)}>{actions.readIds.has(book.id) ? <RotateCcw size={17} /> : <Check size={17} />}</button>
+    <div className="list-entry">
+      <button className="list-book" aria-haspopup={mobile ? 'dialog' : undefined}
+        aria-describedby={statusPrefix + book.id} onClick={(event) => onSelect(book, event.currentTarget)}><strong>{referenceNodeByBookId[book.id] && <svg className="reference-colour-mark" width="14" height="14" aria-hidden="true"><rect x="0.5" y="0.5" width="13" height="13" fill={referenceNodeByBookId[book.id].fill} stroke={referenceNodeByBookId[book.id].stroke} /></svg>}{book.title}</strong><span>{book.faction && `${book.faction} · `}<BookType kind={book.kind} />{actions.readingOption === 'siege' && siegeBookNumbers[book.id] ? ` · Siege book ${siegeBookNumbers[book.id]}` : ''}</span></button>
+      <span className="list-status" id={statusPrefix + book.id}>{readingStatus(book.id, actions.readIds, actions.currentId)}{selectedId === book.id && <span className="sr-only">. Selected for Book notes.</span>}</span>
+    </div>
+    <ReadingActions book={book} list {...actions} />
   </li>)}</ol>
 }
 
-function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, readingOption, onOption }: BookActions & { selectedId: string; onSelect: (book: Book) => void; onOption: (option: ReadingOption) => void }) {
+function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, readingOption, onOption, progressNotice }: BookActions & { selectedId: string; progressNotice: ProgressNotice; onSelect: (book: Book) => void; onOption: (option: ReadingOption) => void }) {
   const [search, setSearch] = useState('')
   const [mode, setMode] = useState<MapMode>('map')
   const [routeOnly, setRouteOnly] = useState(false)
   const [highlightPaths, setHighlightPaths] = useState(true)
   const [focusConnections, setFocusConnections] = useState(false)
   const [fullMobileMap, setFullMobileMap] = useState(false)
-  const [mapAnnouncement, setMapAnnouncement] = useState('')
+  const [announcedBookId, setAnnouncedBookId] = useState<string>()
   const [focusRevision, setFocusRevision] = useState(0)
   const mobile = useMobileLayout()
   const mapExpanded = mobile && fullMobileMap
   const mapSlot = useRef<HTMLDivElement>(null)
   const mapOpener = useRef<HTMLElement | null>(null)
+  const mobileNextRef = useRef<HTMLDetailsElement>(null)
+  const clearMapFiltersRef = useRef<HTMLButtonElement>(null)
   // Move the portal host between the inline map and dialog without remounting the canvas.
   const [mapHost] = useState(() => typeof document === 'undefined' ? null : document.createElement('div'))
   const activeTab = () => document.querySelector<HTMLElement>('.atlas-tabs [aria-selected="true"]')
   const mapCard = (id: string) => mapHost?.querySelector<SVGGElement>('[data-book-id="' + CSS.escape(id) + '"]')
   const { notesOpen, openNotes, closeNotes } = useBookNotes(() =>
-    document.querySelector<HTMLElement>('.mobile-expanded .path-notes-action') ?? activeTab())
+    document.querySelector<HTMLElement>('.mobile-expanded .map-reading-notes') ?? activeTab())
+  const selectedBook = bookById[selectedId]
+  const selectedStatus = readingStatus(selectedId, readIds, currentId)
+  const notesModal = mobile && notesOpen
   const source = readingOptions[readingOption]
   const connections = getConnections(readingOption)
   const nextSteps = getNextSteps(currentId, readIds, readingOption)
@@ -465,14 +511,18 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
   const visibleIds = new Set((focusConnections && mode === 'map' ? mapBooks : visibleBooks).map((book) => book.id))
   const nextPaths = connections.filter((edge) => edge.from === selectedId && visibleIds.has(edge.to))
   const hasMap = mapBooks.length > 0
+  const mapModal = mapExpanded && hasMap && mode === 'map'
   useLayoutEffect(() => {
     if (mapSlot.current && mapHost) mapSlot.current.append(mapHost)
   }, [mapExpanded, hasMap, mapHost])
   useLayoutEffect(() => {
-    if (mobile || !fullMobileMap) return
+    if (!fullMobileMap || mapModal) return
     setFullMobileMap(false)
-    if (!notesOpen) requestAnimationFrame(() => restoreFocus(mapOpener.current, mapCard(selectedId), activeTab()))
-  }, [mobile, fullMobileMap])
+    if (!notesOpen) requestAnimationFrame(() => {
+      if (hasMap) restoreFocus(mapOpener.current, mapCard(selectedId), activeTab())
+      else restoreFocus(clearMapFiltersRef.current, activeTab())
+    })
+  }, [fullMobileMap, mapModal, hasMap])
 
   const openFullMobileMap = (trigger: HTMLElement) => {
     mapOpener.current = trigger
@@ -484,11 +534,13 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
   }
   const selectMapBook = (book: Book, focusCard = false) => {
     onSelect(book)
-    setMapAnnouncement('Selected ' + book.title + '.')
+    setAnnouncedBookId(book.id)
     closeNotes(false)
+    if (mobileNextRef.current) mobileNextRef.current.open = false
     if (focusCard) requestAnimationFrame(() => restoreFocus(mapCard(book.id), activeTab()))
   }
   const selectListBook = (book: Book, trigger: HTMLButtonElement) => {
+    setAnnouncedBookId(undefined)
     onSelect(book)
     openNotes(trigger)
   }
@@ -497,6 +549,7 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
     setSearch('')
     setRouteOnly(false)
     if (!optionBooks.some((item) => item.id === book.id)) setFocusConnections(false)
+    setAnnouncedBookId(undefined)
     onSelect(book)
     setFocusRevision((value) => value + 1)
     if (trigger) openNotes(trigger)
@@ -512,9 +565,19 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
   const canvas = <MapCanvas referenceLayout={isReference(readingOption) && !focusConnections} focusRevision={focusRevision}
     selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={mapBooks} highlightPaths={highlightPaths}
     focusConnections={focusConnections} connections={mapConnections} recommendedIds={new Set(recommendations.map((item) => item.book!.id))}
-    announcement={mapAnnouncement} onDismissNotes={() => closeNotes(false)} onSelect={selectMapBook} />
+    announcement={announcedBookId === selectedId ? 'Selected ' + selectedBook.title + ', ' + bookTypes[selectedBook.kind].label + '.' : ''} onDismissNotes={() => closeNotes(false)} onSelect={selectMapBook} />
   const mapSlotContent = <div className="map-canvas-host" ref={mapSlot}>{!mapHost && canvas}</div>
-  const notesButtonLabel = 'Book notes for ' + bookById[selectedId].title
+  const notesButtonLabel = 'Book notes for ' + selectedBook.title
+  const phoneReadingBar = <div className="map-selected-mobile" role="group" aria-label="Selected book" onClickCapture={() => {
+    if (mobileNextRef.current) mobileNextRef.current.open = false
+  }}>
+    <button type="button" className="map-reading-notes" aria-label={notesButtonLabel + ', ' + selectedStatus.toLowerCase()}
+      aria-haspopup="dialog" onClick={(event) => openNotes(event.currentTarget)}>
+      <strong>{selectedBook.title}</strong>
+      <small><span>{selectedStatus} · </span>Notes <ArrowUpRight size={11} aria-hidden="true" /></small>
+    </button>
+    <ReadingActions book={selectedBook} {...actions} />
+  </div>
   const clearFilters = () => {
     setSearch('')
     setRouteOnly(false)
@@ -523,7 +586,7 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
   return <>
     <section className="reading-desk" aria-label="Your reading route">
       <div className="current-reading"><div className="section-label"><BookOpen size={17} /><h2>{readIds.has(currentId) ? 'Last finished' : 'Reading now'}</h2></div><button className="book-heading" aria-haspopup={mobile ? 'dialog' : undefined} onClick={(event) => revealBook(bookById[currentId], event.currentTarget)}>{bookById[currentId].title}</button><p><BookType kind={bookById[currentId].kind} /></p><button className="text-action" onClick={() => onRead(currentId)}>{readIds.has(currentId) ? <RotateCcw size={15} /> : <Check size={15} />}{readIds.has(currentId) ? 'Mark unread' : 'Mark finished'}</button></div>
-      <div className="next-reading"><div className="section-label"><ArrowRight size={17} /><h2>{isReference(readingOption) ? 'Next source steps' : 'Read next'}</h2></div>{recommended?.book ? <><button className="book-heading" aria-haspopup={mobile ? 'dialog' : undefined} onClick={(event) => revealBook(recommended.book!, event.currentTarget)}>{recommended.title}</button><p>{recommended.explanation}</p><div className="next-actions"><button className="quiet-action" aria-haspopup={mobile ? 'dialog' : undefined} onClick={(event) => { onCurrent(recommended.book!.id); revealBook(recommended.book!, event.currentTarget) }}>Start reading <ArrowRight size={16} /></button><button className="text-action" aria-haspopup={mobile ? 'dialog' : undefined} onClick={(event) => showOnMap(recommended.book!, event.currentTarget)}>Show on map</button></div></> : nextSteps.length ? <><p>Choose a source path. These choices have no app ranking.</p><ul className="source-steps">{nextSteps.map((step) => <li key={step.id}>{step.book ? <button className="text-action" aria-haspopup={mobile ? 'dialog' : undefined} onClick={(event) => revealBook(step.book!, event.currentTarget)}>{step.title}<ArrowRight size={14} /></button> : <a href={step.sourceUrl} target="_blank" rel="noreferrer">{step.title}<ArrowUpRight size={14} /><small>{step.explanation}</small></a>}</li>)}</ul></> : <><h3>{readingOption === 'siege' ? 'End of the numbered Siege series.' : readingOption === 'saga' ? 'End of the Saga selection.' : 'No next step is recorded here.'}</h3><p>{readingOption === 'siege' ? 'The main series ends at The End and the Death: Volume III. Earlier unfinished volumes remain in the list below; related stories are in the publisher’s catalogue.' : readingOption === 'saga' ? 'This selection stops at Slaves to Darkness. Any earlier unfinished books remain in the list below.' : 'Check the original flowchart for its full route and coverage.'}</p><a className="text-action" href={source.sourceUrl} target="_blank" rel="noreferrer">View source <ArrowUpRight size={14} /></a></>}</div>
+      <div className="next-reading"><div className="section-label"><ArrowRight size={17} /><h2>{isReference(readingOption) ? 'Next source steps' : 'Read next'}</h2></div>{recommended?.book ? <><button className="book-heading" aria-haspopup={mobile ? 'dialog' : undefined} onClick={(event) => revealBook(recommended.book!, event.currentTarget)}>{recommended.title}</button><p>{recommended.explanation}</p><div className="next-actions"><button className="quiet-action" onClick={() => onCurrent(recommended.book!.id)}>Start reading <ArrowRight size={16} /></button><button className="text-action" aria-haspopup={mobile ? 'dialog' : undefined} onClick={(event) => showOnMap(recommended.book!, event.currentTarget)}>Show on map</button></div></> : nextSteps.length ? <><p>Choose a source path. These choices have no app ranking.</p><ul className="source-steps">{nextSteps.map((step) => <li key={step.id}>{step.book ? <button className="text-action" aria-haspopup={mobile ? 'dialog' : undefined} onClick={(event) => revealBook(step.book!, event.currentTarget)}>{step.title}<ArrowRight size={14} /></button> : <a href={step.sourceUrl} target="_blank" rel="noreferrer">{step.title}<ArrowUpRight size={14} /><small>{step.explanation}</small></a>}</li>)}</ul></> : <><h3>{readingOption === 'siege' ? 'End of the numbered Siege series.' : readingOption === 'saga' ? 'End of the Saga selection.' : 'No next step is recorded here.'}</h3><p>{readingOption === 'siege' ? 'The main series ends at The End and the Death: Volume III. Earlier unfinished volumes remain in the list below; related stories are in the publisher’s catalogue.' : readingOption === 'saga' ? 'This selection stops at Slaves to Darkness. Any earlier unfinished books remain in the list below.' : 'Check the original flowchart for its full route and coverage.'}</p><a className="text-action" href={source.sourceUrl} target="_blank" rel="noreferrer">View source <ArrowUpRight size={14} /></a></>}</div>
     </section>
     <h1 className="sr-only">Explore reading options</h1>
     <div className="atlas-tabs" role="tablist" aria-label="Explore views">
@@ -555,22 +618,35 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
       {hiddenSteps.length > 0 && !focusConnections && <div className="hidden-stories"><span>{hiddenSteps.length} next {hiddenSteps.length === 1 ? 'step is' : 'steps are'} hidden by Novels only.</span><button className="text-action" onClick={() => onOption('reference')}>Show all stories <ArrowRight size={14} /></button></div>}
       {selectedSourceSteps.length > 0 && <div className="source-paths"><span>Selected work: unresolved source steps</span>{selectedSourceSteps.map((step) => <a key={step.id} href={step.sourceUrl} target="_blank" rel="noreferrer">{step.title} <ArrowUpRight size={13} /></a>)}</div>}
       <div role="tabpanel" id="view-panel-map" aria-labelledby="view-tab-map" tabIndex={0} hidden={mode !== 'map'}>
-        <div className="next-paths"><strong>Selected: {bookById[selectedId].title}</strong>{highlightPaths && (nextPaths.length ? <div>{nextPaths.map((edge) => <button key={edge.to} onClick={() => selectMapBook(bookById[edge.to], true)}><ArrowRight size={14} /><span>{bookById[edge.to].title}<small>{edge.kind === 'sequence' ? 'Publisher’s listed order' : 'Reference arrow'}</small></span></button>)}</div> : <span>No catalogue paths are visible. Check source steps and filters.</span>)}<button className="text-action path-notes-action" aria-label={notesButtonLabel} aria-haspopup={mobile ? 'dialog' : undefined} onClick={(event) => openNotes(event.currentTarget)}>Book notes <ArrowRight size={15} /></button></div>
+        <div className="next-paths">
+          <strong>Selected: {selectedBook.title}</strong>
+          {highlightPaths && (nextPaths.length ? <div className="path-links">{nextPaths.map((edge) => <button key={edge.to} onClick={() => selectMapBook(bookById[edge.to], true)}><ArrowRight size={14} /><span>{bookById[edge.to].title}<small>{edge.kind === 'sequence' ? 'Publisher’s listed order' : 'Reference arrow'}</small></span></button>)}</div> : <span>No catalogue paths are visible. Check source steps and filters.</span>)}
+          <div className="map-reading-actions">
+            <ReadingActions book={selectedBook} {...actions} />
+            <button className="text-action path-notes-action" aria-label={notesButtonLabel} onClick={(event) => openNotes(event.currentTarget)}>Book notes <ArrowRight size={15} /></button>
+          </div>
+        </div>
         {focusConnections && <p className="focus-description">Direct links to and from the selected book. Filters apply to the full map. Turn off Focus connections to return to your map position.</p>}
-        {!hasMap ? <div className="empty-state"><h2>No books found</h2><p>Try another title, or clear the filters.</p><button className="quiet-action" onClick={clearFilters}>Clear filters</button></div> : <>
+        {!hasMap ? <div className="empty-state"><h2>No books found</h2><p>Try another title, or clear the filters.</p><button ref={clearMapFiltersRef} className="quiet-action" onClick={clearFilters}>Clear filters</button></div> : <>
           <button className="mobile-map-toggle text-action" aria-haspopup="dialog" onClick={(event) => openFullMobileMap(event.currentTarget)}><Map size={17} />Expand map</button>
-          {mapExpanded ? <FocusDialog label="Connection map" className="atlas-map mobile-expanded" onClose={closeFullMobileMap}>
+          {mapModal ? <FocusDialog label="Connection map" className="atlas-map mobile-expanded" onClose={closeFullMobileMap}>
             <button data-initial-focus className="map-fullscreen-close quiet-action" onClick={closeFullMobileMap}><Map size={17} />Back to map</button>
             <label className="map-highlight-mobile"><input type="checkbox" checked={highlightPaths} onChange={(event) => setHighlightPaths(event.target.checked)} />Next paths</label>
             <label className="map-highlight-mobile map-focus-mobile"><input type="checkbox" checked={focusConnections} disabled={!(isReference(readingOption) ? referenceBooks : optionBooks).some((book) => book.id === selectedId)} onChange={(event) => setFocusConnections(event.target.checked)} />Focus connections</label>
             {mapSlotContent}
-            <div className="map-selected-mobile">
-              <div className="map-selected-heading"><span><small>Selected book</small><strong>{bookById[selectedId].title}</strong></span>
-                <button className="quiet-action path-notes-action" aria-label={notesButtonLabel} aria-haspopup="dialog" onClick={(event) => openNotes(event.currentTarget)}>Book notes</button>
-              </div>
-              <div className="map-selected-branches">{highlightPaths ? <><small>Next</small>{nextPaths.length ? nextPaths.map((edge) => <button key={edge.to} onClick={() => selectMapBook(bookById[edge.to], true)}><ArrowRight size={13} />{bookById[edge.to].title}</button>) : <span>No visible next path</span>}</> : <span>Next paths hidden</span>}</div>
-            </div>
-          </FocusDialog> : <div className="atlas-map">{mapSlotContent}</div>}
+            {highlightPaths && nextPaths.length > 0 && <details ref={mobileNextRef} className="mobile-next-books" onKeyDown={(event) => {
+              if (event.key !== 'Escape' || !event.currentTarget.open) return
+              event.preventDefault()
+              event.stopPropagation()
+              event.currentTarget.open = false
+              event.currentTarget.querySelector('summary')?.focus()
+            }}>
+              <summary>Next books</summary>
+              <div>{nextPaths.map((edge) => <button type="button" className="text-action" key={edge.to} onClick={() => selectMapBook(bookById[edge.to], true)}>{bookById[edge.to].title}</button>)}</div>
+            </details>}
+            {phoneReadingBar}
+            {!notesModal && progressNotice(true)}
+          </FocusDialog> : <div className="atlas-map">{mapSlotContent}{mobile && phoneReadingBar}</div>}
           {mapHost && createPortal(canvas, mapHost)}
         </>}
         <div className="map-caption"><span><span className="status-sample selected" />Selected</span><span><BookOpen size={13} />Reading</span><span><Check size={13} />Finished</span><span className="caption-note">Select a book to trace its paths.</span></div>
@@ -578,12 +654,13 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
       <div role="tabpanel" id="view-panel-list" aria-labelledby="view-tab-list" tabIndex={0} hidden={mode !== 'list'}>
         {visibleBooks.length === 0 ? <div className="empty-state"><h2>No books found</h2><p>Try another title, or clear the filters.</p><button className="quiet-action" onClick={clearFilters}>Clear filters</button></div> : <div className="list-view"><BookList mobile={mobile} sequence={!isReference(readingOption)} items={visibleBooks} selectedId={selectedId} onSelect={selectListBook} {...actions} /></div>}
       </div>
-    </section>{notesOpen && <BookNotes book={bookById[selectedId]} mobile={mobile} onSelect={revealBook} onClose={closeNotes} {...actions} />}</div>
+    </section>{notesOpen && <BookNotes book={selectedBook} mobile={mobile} notice={notesModal ? progressNotice(true) : undefined} onSelect={revealBook} onClose={closeNotes} {...actions} />}</div>
     {readingOption !== 'siege' && <section className="reading-option siege-continuation" aria-label="Siege of Terra continuation"><h2>Siege of Terra</h2><p>The reference reaches The Solar War. Continue through Black Library’s numbered main series, including all three final volumes. <a href={readingOptions.siege.sourceUrl} target="_blank" rel="noreferrer">View publisher source <ArrowUpRight size={13} /></a></p><button className="quiet-action" onClick={() => { onOption('siege'); setSearch(''); setRouteOnly(false); setMode('list'); setFullMobileMap(false); closeNotes(false); requestAnimationFrame(() => document.getElementById('main')?.scrollIntoView({ block: 'start' })) }}>Explore Siege of Terra <ArrowRight size={16} /></button></section>}
+    {!mapModal && !notesModal && progressNotice()}
   </>
 }
 
-function Collection({ selectedId, onSelect, ...actions }: BookActions & { selectedId: string; onSelect: (book: Book) => void }) {
+function Collection({ selectedId, onSelect, progressNotice, ...actions }: BookActions & { selectedId: string; progressNotice: ProgressNotice; onSelect: (book: Book) => void }) {
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
   const mobile = useMobileLayout()
@@ -596,7 +673,8 @@ function Collection({ selectedId, onSelect, ...actions }: BookActions & { select
   const items = books.filter((book) => (!query || `${book.title} ${book.faction}`.toLowerCase().includes(query.toLowerCase())) && (filter === 'all' || actions.readIds.has(book.id) === (filter === 'finished')))
   return <><div className="collection-heading"><h1>Your reading library.</h1><p>{`${actions.readIds.size} of ${books.length} works finished. Your progress stays in this browser.`}</p></div>
     <div className="atlas-toolbar"><label className="search-field"><Search size={17} /><input ref={searchRef} aria-label="Search collection" placeholder="Find a title or legion" value={query} onChange={(event) => setQuery(event.target.value)} /></label><label className="select-field"><span>Status</span><select aria-label="Reading status" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">All works</option><option value="finished">Finished</option><option value="unread">Unread</option></select></label></div>
-    <div className="atlas-workspace"><section className="collection-books">{items.length === 0 ? <div className="empty-state"><h2>No books here yet</h2><p>Change the status filter or search to see more books.</p><button className="quiet-action" onClick={() => { setQuery(''); setFilter('all') }}>Show all books</button></div> : <BookList mobile={mobile} items={items} selectedId={selectedId} onSelect={selectAndShowNotes} {...actions} />}</section>{notesOpen && <BookNotes book={bookById[selectedId]} mobile={mobile} onSelect={onSelect} onClose={closeNotes} {...actions} />}</div>
+    <div className="atlas-workspace"><section className="collection-books">{items.length === 0 ? <div className="empty-state"><h2>No books here yet</h2><p>Change the status filter or search to see more books.</p><button className="quiet-action" onClick={() => { setQuery(''); setFilter('all') }}>Show all books</button></div> : <BookList mobile={mobile} items={items} selectedId={selectedId} onSelect={selectAndShowNotes} {...actions} />}</section>{notesOpen && <BookNotes book={bookById[selectedId]} mobile={mobile} notice={mobile ? progressNotice(true) : undefined} onSelect={onSelect} onClose={closeNotes} {...actions} />}</div>
+    {(!mobile || !notesOpen) && progressNotice()}
   </>
 }
 
@@ -607,17 +685,74 @@ export function App() {
   const [notice, setNotice] = useState('')
   const [storageError, setStorageError] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
-  const [undo, setUndo] = useState<Progress | null>(null)
+  const [undo, setUndo] = useState<{ progress: Progress; message: string } | null>(null)
+  const progressTrigger = useRef<{ button: HTMLButtonElement; label: string; surface: Element | null; bookId?: string; keyboard: boolean } | null>(null)
+  const undoButton = useRef<HTMLButtonElement>(null)
+  const showProgressNotice = undo !== null && notice === undo.message
   const readIds = useMemo(() => new Set(progress.readIds), [progress.readIds])
   useEffect(() => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(progress)); setStorageError(false) } catch { setStorageError(true) } }, [progress])
-  const onRead = (id: string) => { setUndo(progress); setProgress(toggleFinished(progress, id)); setNotice(`${bookById[id].title} marked ${readIds.has(id) ? 'unread' : 'finished'}.`) }
-  const onCurrent = (id: string) => { setUndo(progress); setProgress({ ...progress, currentId: id }); setSelectedId(id); setNotice(`Now reading ${bookById[id].title}.`) }
+  useEffect(() => {
+    if (showProgressNotice && progressTrigger.current && (progressTrigger.current.keyboard || document.activeElement === document.body)) {
+      undoButton.current?.focus({ preventScroll: true })
+    }
+  }, [undo, showProgressNotice])
+  const changeProgress = (next: Progress, message: string) => {
+    const button = document.activeElement
+    progressTrigger.current = button instanceof HTMLButtonElement ? {
+      button,
+      label: button.getAttribute('aria-label') || button.textContent.trim(),
+      surface: button.closest('.reading-desk, .map-reading-actions, .map-selected-mobile, #view-panel-list, .collection-books, .book-notes, .library-tools'),
+      bookId: button.closest<HTMLElement>('li[data-book-id]')?.dataset.bookId,
+      keyboard: button.matches(':focus-visible'),
+    } : null
+    setUndo({ progress, message })
+    setProgress(next)
+    setNotice(message)
+  }
+  const onRead = (id: string) => changeProgress(toggleFinished(progress, id), `${bookById[id].title} marked ${readIds.has(id) ? 'unread' : 'finished'}.`)
+  const onCurrent = (id: string) => {
+    changeProgress({ ...progress, currentId: id }, readIds.has(id) ? `Reading position set to ${bookById[id].title}.` : `Now reading ${bookById[id].title}.`)
+    setSelectedId(id)
+  }
+  const restoreProgressFocus = () => {
+    requestAnimationFrame(() => {
+      const trigger = progressTrigger.current
+      const group = trigger?.bookId ? trigger.surface?.querySelector(`[data-book-id="${trigger.bookId}"]`) : trigger?.surface
+      const buttons = Array.from(group?.querySelectorAll('button') || [])
+      const restored = buttons.find((button) => (button.getAttribute('aria-label') || button.textContent.trim()) === trigger?.label)
+      const notesHeading = document.querySelector<HTMLElement>('dialog.book-notes:modal [data-initial-focus]')
+      const mapNotes = document.querySelector<HTMLElement>('.mobile-expanded .map-reading-notes')
+      const currentPage = document.querySelector<HTMLElement>('.primary-nav [aria-current="page"]')
+      restoreFocus(trigger?.button, restored, ...buttons, notesHeading, mapNotes, currentPage)
+    })
+  }
+  const undoProgress = () => {
+    if (!undo) return
+    setProgress({ ...undo.progress, readingOption: progress.readingOption })
+    setUndo(null)
+    setNotice('Last progress change undone.')
+    restoreProgressFocus()
+  }
   const onOption = (option: ReadingOption) => { setProgress((saved) => ({ ...saved, readingOption: option })); setNotice(`Reading option: ${readingOptions[option].label}.`) }
-  const onSelect = (book: Book) => setSelectedId(book.id)
+  const onSelect = (book: Book) => {
+    setSelectedId(book.id)
+    setNotice('')
+  }
   const exportRoute = () => { const url = URL.createObjectURL(new Blob([JSON.stringify(progress, null, 2)], { type: 'application/json' })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'heresy-pathfinder-route.json'; anchor.click(); URL.revokeObjectURL(url); setNotice('Reading progress exported.') }
+  const progressNotice: ProgressNotice = (inDialog = false) => (
+    <div className={showProgressNotice ? 'progress-notice' : inDialog ? 'sr-only' : 'notice-bar'} onKeyDown={(event) => {
+      if (event.key !== 'Escape' || !showProgressNotice) return
+      event.preventDefault()
+      event.stopPropagation()
+      setNotice('')
+      restoreProgressFocus()
+    }}>
+      <span><span role="status">{notice}</span>{!notice && !inDialog && 'Progress is saved on this device.'}</span>
+      {undo && (!inDialog || showProgressNotice) && <button ref={undoButton} className="text-action" onClick={undoProgress}>Undo</button>}
+    </div>
+  )
   return <div className="app-shell"><a className="skip-link" href="#main">Skip to content</a><header className="topbar"><button className="brand-lockup" onClick={() => setView('map')} aria-label="Pathfinder home"><BookOpen size={25} strokeWidth={1.3} /><span>Pathfinder<small>A Horus Heresy reading companion</small></span></button><nav className="primary-nav" aria-label="Primary navigation">{([['map', 'Explore'], ['library', 'My library']] as const).map(([id, label]) => <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav><div className="header-progress"><span>{readIds.size} / {books.length} finished</span><progress aria-label="Works finished" value={readIds.size} max={books.length} /></div></header>
-    <main id="main">{storageError && <div className="storage-error" role="alert">Your browser could not save progress. Keep this page open and <button onClick={exportRoute}>export your progress</button>.</div>}{view === 'map' ? <Explore readingOption={progress.readingOption} onOption={onOption} selectedId={selectedId} onSelect={onSelect} currentId={progress.currentId} readIds={readIds} onRead={onRead} onCurrent={onCurrent} /> : <Collection readingOption={progress.readingOption} selectedId={selectedId} onSelect={onSelect} currentId={progress.currentId} readIds={readIds} onRead={onRead} onCurrent={onCurrent} />}
-      <div className="notice-bar"><span role="status" aria-live="polite">{notice || 'Progress is saved on this device.'}</span>{undo && <button className="text-action" onClick={() => { setProgress({ ...undo, readingOption: progress.readingOption }); setUndo(null); setNotice('Last progress change undone.') }}>Undo</button>}</div>
-      {view === 'library' && <div className="library-tools"><button className="quiet-action" onClick={exportRoute}><Download size={16} />Export progress</button>{confirmReset ? <div className="reset-confirm"><span>Clear all reading progress?</span><button className="quiet-action" onClick={() => { setUndo(progress); setProgress({ ...progress, readIds: [], currentId: 'horus-rising' }); setSelectedId('horus-rising'); setConfirmReset(false); setNotice('Progress cleared. You can undo this change.') }}>Clear progress</button><button className="text-action" onClick={() => setConfirmReset(false)}>Cancel</button></div> : <button className="text-action" onClick={() => setConfirmReset(true)}>Reset progress</button>}</div>}
+    <main id="main">{storageError && <div className="storage-error" role="alert">Your browser could not save progress. Keep this page open and <button onClick={exportRoute}>export your progress</button>.</div>}{view === 'map' ? <Explore progressNotice={progressNotice} readingOption={progress.readingOption} onOption={onOption} selectedId={selectedId} onSelect={onSelect} currentId={progress.currentId} readIds={readIds} onRead={onRead} onCurrent={onCurrent} /> : <Collection progressNotice={progressNotice} readingOption={progress.readingOption} selectedId={selectedId} onSelect={onSelect} currentId={progress.currentId} readIds={readIds} onRead={onRead} onCurrent={onCurrent} />}
+      {view === 'library' && <div className="library-tools"><button className="quiet-action" onClick={exportRoute}><Download size={16} />Export progress</button>{confirmReset ? <div className="reset-confirm"><span>Clear all reading progress?</span><button className="quiet-action" onClick={() => { changeProgress({ ...progress, readIds: [], currentId: 'horus-rising' }, 'Progress cleared.'); setSelectedId('horus-rising'); setConfirmReset(false) }}>Clear progress</button><button className="text-action" onClick={() => setConfirmReset(false)}>Cancel</button></div> : <button className="text-action" onClick={() => setConfirmReset(true)}>Reset progress</button>}</div>}
     </main><footer className="site-footer"><span>Pathfinder <span className="footer-divider">/</span> An unofficial companion to source reading guides</span><div><a href="https://www.kylebb.com/HH/HHSeriesOrder.svg" target="_blank" rel="noreferrer">Reference flowchart <ArrowUpRight size={13} /></a><a href="https://gaming.kylebb.com/hhtimeline/" target="_blank" rel="noreferrer">Reading timeline <ArrowUpRight size={13} /></a></div></footer></div>
 }

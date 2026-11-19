@@ -8,8 +8,12 @@ function subscribeToMobileLayout(onChange: () => void) {
   return () => query.removeEventListener('change', onChange)
 }
 
+export function isMobileLayout() {
+  return window.matchMedia(mobileQuery).matches
+}
+
 export function useMobileLayout() {
-  return useSyncExternalStore(subscribeToMobileLayout, () => window.matchMedia(mobileQuery).matches, () => false)
+  return useSyncExternalStore(subscribeToMobileLayout, isMobileLayout, () => false)
 }
 
 export function restoreFocus(...targets: (HTMLElement | SVGElement | null | undefined)[]) {
@@ -26,7 +30,8 @@ export function restoreFocus(...targets: (HTMLElement | SVGElement | null | unde
 function wrapTab(event: KeyboardEvent<HTMLDialogElement>) {
   if (event.key !== 'Tab') return
   const controls = [...event.currentTarget.querySelectorAll<HTMLElement | SVGElement>('button, a[href], input, select, summary, [tabindex]')]
-    .filter((element) => element.tabIndex >= 0 && !element.matches(':disabled') && element.getClientRects().length)
+    .filter((element) => element.tabIndex >= 0 && !element.matches(':disabled') &&
+      element.getClientRects().length && getComputedStyle(element).visibility === 'visible')
   const first = controls[0]
   const last = controls.at(-1)
   if (!first || document.activeElement === (event.shiftKey ? first : last)) {
