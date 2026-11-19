@@ -3,6 +3,10 @@ import { type ReadingOption } from './reading-options'
 
 export type Progress = { readIds: string[]; currentId: string; readingOption: ReadingOption }
 
+export function readingStatus(id: string, readIds: Set<string>, currentId: string) {
+  return readIds.has(id) ? 'Finished' : id === currentId ? 'Reading' : 'Unread'
+}
+
 export function parseProgress(value: unknown): Progress {
   const saved = value && typeof value === 'object' ? value as Partial<Progress> : {}
   const knownIds = new Set(books.map((book) => book.id))

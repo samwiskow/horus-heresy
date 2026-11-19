@@ -98,8 +98,9 @@ python3 scripts/import-reference.py /path/to/HHSeriesOrder.svg /tmp/reference-fl
 
 Black Library Saga is a separate publisher selection, not a replacement for the full branching guide. Its map lines indicate adjacent entries in the published list, not inferred sequel or prerequisite relationships. The app adds no continuation after its final title.
 
-Explore ends with a separate Siege of Terra option. Its source record preserves
-Black Library's book numbers and product URLs. See the [Siege source note](docs/siege-of-terra-source.md).
+At The Solar War, Explore offers a switch to the separate Siege of Terra option.
+Its source record preserves Black Library's book numbers and product URLs. See
+the [Siege source note](docs/siege-of-terra-source.md).
 See the [reference catalogue audit](docs/reference-catalogue.md) for work types, publication evidence, and source-label corrections.
 The reference's unresolved Solar War arrow remains unchanged; the continuation
 uses the publisher's numbered main series. Supporting novellas and anthologies

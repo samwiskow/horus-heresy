@@ -5,7 +5,8 @@ import { App } from '../src/App.tsx'
 import { bookById, books } from '../src/data.ts'
 import { getEdgeRoute, getConnectionFocus, layoutSourceFlow, NODE_WIDTH, NODE_HEIGHT, ROW_STEP } from '../src/map-layout.ts'
 import { centreOnBook, fitMap, mapShowsBook, stepMapZoom } from '../src/map-camera.ts'
-import { getReachableBookIds, getNextSteps } from '../src/logic.ts'
+import { getDirectionalBook, revealMapBook } from '../src/map-keyboard.ts'
+import { getReachableBookIds, getNextSteps, getSiegeHandoff } from '../src/logic.ts'
 import { getConnections, reference, referenceBookByNodeId, referenceNodeByBookId, referencePositions, getOptionBooks, sagaBookIds, siegeBookIds, siegeBookNumbers } from '../src/reading-options.ts'
 import { parseProgress, toggleFinished } from '../src/progress.ts'
 
@@ -112,6 +113,28 @@ run('finished books advance only through source connections', () => {
   assert.equal(reachable.has('galaxy-in-flames'), true)
 })
 
+run('finds the Eisenstein branches and records when an unfinished work is reached through Fulgrim', () => {
+  const initial = getNextSteps('flight-eisenstein', new Set(), 'reference')
+  assert.deepEqual(initial.flatMap((step) => step.book ? [step.book.id] : []).sort(), [
+    'child-of-night', 'fulgrim', 'garro-ashes-of-fealty', 'the-crimson-fist', 'the-last-remembrancer', 'the-purge', 'thousand-sons',
+  ])
+  assert.equal(initial.filter((step) => !step.book).length, 1)
+  assert.equal(initial.some((step) => step.via), false)
+  const afterFulgrim = getNextSteps('flight-eisenstein', new Set(['fulgrim']), 'reference-novels')
+  assert.equal(afterFulgrim.find((step) => step.book?.id === 'first-heretic')?.via?.id, 'fulgrim')
+  assert.equal(afterFulgrim.find((step) => step.book?.id === 'thousand-sons')?.via, undefined)
+})
+
+run('opens the shared first Siege book or continues to the next unfinished numbered volume', () => {
+  assert.equal(getSiegeHandoff('solar-war', new Set()).destination.id, 'solar-war')
+  assert.equal(getSiegeHandoff('flight-eisenstein', new Set(['solar-war'])).destination.id, 'solar-war')
+  assert.equal(getSiegeHandoff('solar-war', new Set(['solar-war'])).destination.id, 'lost-and-damned')
+  assert.equal(getSiegeHandoff('solar-war', new Set(['solar-war', 'lost-and-damned'])).destination.id, 'first-wall')
+  const finished = getSiegeHandoff('solar-war', new Set(siegeBookIds))
+  assert.equal(finished.complete, true)
+  assert.equal(finished.destination.id, 'solar-war')
+})
+
 run('follows the publisher’s numbered Siege series through all three final volumes', () => {
   const expected = ['solar-war', 'lost-and-damned', 'first-wall', 'saturnine', 'mortis', 'warhawk', 'echoes-of-eternity', 'end-and-death-i', 'end-and-death-ii', 'end-and-death-iii']
   assert.deepEqual(siegeBookIds, expected)
@@ -162,8 +185,7 @@ run('offers source browsing without unsupported story arc groups', () => {
   assert.match(page, /Black Library: Horus Heresy Saga/)
   assert.match(page, /Book list/)
   assert.match(page, /Connection map/)
-  assert.match(page, /Siege of Terra continuation/)
-  assert.match(page, /Explore Siege of Terra/)
+  assert.match(page, /Black Library: Siege of Terra/)
   assert.doesNotMatch(page, /Legions in collision|Loyalist convergence|The Warmaster ascendant|Arc lanes|aria-label="Story arc"|>Story arcs</)
 })
 
@@ -182,6 +204,48 @@ run('exposes map and list tabs with matching accessible panels', () => {
   assert.equal((page.match(/<select aria-label="Reading option"/g) || []).length, 1)
   assert.doesNotMatch(page, /aria-label="View"|The story atlas|How to read the map/)
   assert.match(page, /<summary aria-label="Map key">/)
+})
+
+run('keeps one card in the map tab order', () => {
+  const page = renderToStaticMarkup(createElement(App))
+  const cards = [...page.matchAll(/<g[^>]*class="map-node [^"]*"[^>]*>/g)].map(([card]) => card)
+  assert.equal(cards.length, 173)
+  assert.equal(cards.filter((card) => card.includes('tabindex="0"')).length, 1)
+  assert.match(cards.find((card) => card.includes('tabindex="0"')), /Horus Rising/)
+  assert.equal(cards.filter((card) => card.includes('tabindex="-1"')).length, 172)
+})
+
+run('reaches every reference card by moving in the four map directions', () => {
+  const items = getOptionBooks('reference').map((book) => ({ ...book, ...referencePositions[book.id] }))
+  const opening = items.find((book) => book.id === 'horus-rising')
+  assert.equal(getDirectionalBook(opening, items, 'ArrowRight').id, 'false-gods')
+  assert.equal(getDirectionalBook(opening, items, 'ArrowUp'), undefined)
+  const neighbors = new Map(items.map((book) => [book.id, ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']
+    .map((direction) => getDirectionalBook(book, items, direction)).filter(Boolean)]))
+  for (const book of items) {
+    const visited = new Set([book.id])
+    const queue = [book]
+    for (const current of queue) {
+      for (const next of neighbors.get(current.id)) {
+        if (visited.has(next.id)) continue
+        visited.add(next.id)
+        queue.push(next)
+      }
+    }
+    assert.equal(visited.size, items.length, book.title)
+  }
+})
+
+run('pans a focused plate clear of the notes and controls at its current zoom', () => {
+  const book = { ...bookById['horus-rising'], x: 680, y: 12 }
+  const view = { zoom: 1, pan: { x: 0, y: 0 } }
+  const canvas = { left: 0, top: 0, right: 800, bottom: 400 }
+  const notes = { left: 500, top: 0, right: 800, bottom: 400 }
+  const toolbar = { left: 230, top: 0, right: 600, bottom: 70 }
+  const next = revealMapBook(book, view, canvas, [notes, toolbar])
+  assert.equal(next.zoom, view.zoom)
+  assert.ok(book.x + next.pan.x + NODE_WIDTH < notes.left)
+  assert.ok(book.y + next.pan.y > toolbar.bottom)
 })
 
 run('routes all source arrows outside book plates', () => {
