@@ -8,7 +8,7 @@ import { BookType, bookTypes } from './book-types'
 import { getReachableBookIds, getNextSteps, getSiegeHandoff } from './logic'
 import { FocusDialog, isMobileLayout, restoreFocus, useMobileLayout } from './focus'
 import { getDirectionalBook, isMapDirection, revealMapBook, type MapRect } from './map-keyboard'
-import { centreOnBook, fitMap, mapShowsBook, stepMapZoom, type MapCamera } from './map-camera'
+import { centreOnBook, fitMap, mapShowsBook, stepMapZoom, type MapCamera, type MapPosition } from './map-camera'
 import { edgePath, getEdgeRoute, getConnectionFocus, layoutSourceFlow, NODE_WIDTH, NODE_HEIGHT } from './map-layout'
 
 import { HiddenPaths, PathChoices, PathToggle, SiegeHandoff, SourcePathNotes } from './reading-decisions'
@@ -118,6 +118,10 @@ function BookNode({ book, selected, active, zoom, dimmed, readIds, currentId, re
   )
 }
 
+function mapTransform({ x, y, zoom }: MapPosition) {
+  return `translate(calc(50% + ${-x * zoom}px), calc(50% + ${-y * zoom}px)) scale(${zoom})`
+}
+
 function MapCanvas({
   selectedId, currentId, readIds, visibleBooks, highlightPaths, focusConnections, referenceLayout, recommendedIds,
   active, onSelect, camera, atlasAnchor, onCameraChange, connections, routeOnly,
@@ -146,13 +150,16 @@ function MapCanvas({
 }) {
   const shellRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  const worldRef = useRef<SVGGElement>(null)
   const hintId = useId()
   const selectionId = useId()
   const [keyboardBookId, setKeyboardBookId] = useState<string>()
   const pointerBook = useRef<string | null>(null)
   const hadRouteFilter = useRef(routeOnly)
   const [size, setSize] = useState({ width: 1000, height: 600 })
-  const drag = useRef<{ x: number; y: number; mapX: number; mapY: number } | null>(null)
+  const drag = useRef<{
+    pointerId: number; x: number; y: number; camera: MapCamera; start: MapPosition; position?: MapPosition
+  } | null>(null)
   const { placedById, visibleConnections, paths } = useMemo(() => {
     const placedById = Object.fromEntries(visibleBooks.map((book) => [book.id, book]))
     const visibleConnections = connections.filter((edge) => placedById[edge.from] && placedById[edge.to])
@@ -276,16 +283,25 @@ function MapCanvas({
   }
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
     rememberPointerBook(event.target)
-    if (event.button !== 0 || pointerBook.current) return
-    drag.current = { x: event.clientX, y: event.clientY, mapX: view.x, mapY: view.y }
+    if (event.button !== 0 || pointerBook.current || drag.current) return
+    drag.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, camera, start: view }
     event.currentTarget.setPointerCapture(event.pointerId)
   }
   const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
-    const start = drag.current
-    if (!start) return
-    onCameraChange({ x: start.mapX - (event.clientX - start.x) / zoom, y: start.mapY - (event.clientY - start.y) / zoom, zoom })
+    const pan = drag.current
+    if (!pan || pan.pointerId !== event.pointerId || pan.camera !== camera) return
+    const { x, y, zoom } = pan.start
+    pan.position = { x: x - (event.clientX - pan.x) / zoom, y: y - (event.clientY - pan.y) / zoom, zoom }
+    // Paint drag frames without rerendering the map and list. Commit the camera when the pointer ends.
+    worldRef.current!.style.transform = mapTransform(pan.position)
   }
-  const stopDrag = () => { drag.current = null; pointerBook.current = null }
+  const stopDrag = (event: PointerEvent<SVGSVGElement>) => {
+    pointerBook.current = null
+    const pan = drag.current
+    if (!pan || pan.pointerId !== event.pointerId) return
+    drag.current = null
+    if (pan.position && pan.camera === camera) onCameraChange(pan.position)
+  }
 
   return (
     <div className="map-canvas-panel">
@@ -343,7 +359,7 @@ function MapCanvas({
             </marker>
           </defs>
           <rect width="100%" height="100%" fill="url(#map-grid)" />
-          <g className="map-world" style={{ transform: `translate(calc(50% + ${-view.x * zoom}px), calc(50% + ${-view.y * zoom}px)) scale(${zoom})` }}>
+          <g className="map-world" ref={worldRef} style={{ transform: mapTransform(view) }}>
             {[...paths].sort((a, b) => Number(a.from === focusId) - Number(b.from === focusId)).map((edge) => {
               const active = edge.from === focusId
               const dimmed = Boolean(focusId) && !active && !focusConnections
