@@ -24,6 +24,7 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; }
+body:has(dialog:modal) { overflow: hidden; }
 button, input, select { font: inherit; color: inherit; }
 button, select, summary { cursor: pointer; }
 button { border: 0; background: none; }
@@ -149,6 +150,7 @@ main { padding: 0 44px 26px; }
 .notes-heading .icon-button { color: var(--accent); }
 .book-reference { display: flex; justify-content: space-between; margin-bottom: 12px; color: var(--muted); font-size: 12px; }
 .book-reference span { text-transform: capitalize; }
+dialog.book-notes { inset: 0; width: 100%; max-width: none; max-height: none; margin: 0; border: 0; color: var(--ink); }
 .book-notes h3 { font-size: 26px; line-height: 1.3; margin-bottom: 10px; overflow-wrap: anywhere; }
 .faction-name { font-size: 12px; color: var(--muted); }
 .book-status { display: flex; align-items: center; gap: 6px; color: var(--green); font-size: 12px; }
@@ -204,13 +206,14 @@ main { padding: 0 44px 26px; }
 .map-highlight-mobile { display: none; }
 .map-selected-mobile { display: none; }
 .expanded-paths { display: none; }
-.map-canvas-shell { position: relative; height: 100%; overflow: hidden; }
+.map-canvas-host, .map-canvas-host > div { height: 100%; }
+.map-canvas-shell { position: relative; height: 100%; overflow: clip; }
 .map-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 .map-controls { position: absolute; z-index: 3; top: 10px; right: 10px; display: flex; align-items: center; border: 1px solid var(--line); background: var(--sheet); }
 .zoom-label { font-size: 11px; width: 36px; text-align: center; }
 .map-text-control { min-height: 42px; padding: 0 9px; color: var(--ink); font-size: 11px; }
 .map-text-control:hover { color: var(--accent); }
-.map-hint { position: absolute; bottom: 12px; left: 12px; font-size: 11px; background: var(--sheet); padding: 5px; }
+.map-hint { position: absolute; bottom: 12px; left: 12px; max-width: calc(100% - 24px); font-size: 11px; background: var(--sheet); padding: 5px; }
 .map-edge-clearance { fill: none; stroke: var(--sheet); stroke-width: 8; stroke-linejoin: round; }
 .focus-description { color: var(--muted); font-size: 12px; margin: 8px 0 12px; }
 .map-edge { fill: none; stroke: var(--map-edge); stroke-width: 2.2; }
@@ -220,6 +223,9 @@ main { padding: 0 44px 26px; }
 .map-overview .map-edge.active { stroke-width: 1.25; }
 .map-overview .map-edge-clearance { vector-effect: non-scaling-stroke; stroke-width: 2.5; }
 .map-node { cursor: pointer; }
+.node-keyboard-ring { fill: none; pointer-events: none; }
+.map-node:focus-visible { outline: none; }
+.map-node:focus-visible .node-keyboard-ring { stroke: var(--accent); stroke-width: 2px; }
 .node-plate { fill: var(--sheet); stroke: #8d877b; }
 .paths-highlighted .map-node:not(.dimmed) .node-plate { stroke: var(--accent); stroke-width: 2; }
 .paths-highlighted .map-node.dimmed .node-plate { fill-opacity: .62; stroke-opacity: .62; }
@@ -286,14 +292,14 @@ main { padding: 0 44px 26px; }
   .atlas-map { height: 480px; }
   .atlas-map:not(.mobile-expanded) .map-highlight-mobile,
   .atlas-map:not(.mobile-expanded) .map-fullscreen-close { display: none; }
-  .atlas-map.mobile-expanded { position: fixed; z-index: 20; inset: 0; display: block; width: 100vw; height: 100dvh; border: 0; }
+  .atlas-map.mobile-expanded { position: fixed; inset: 0; width: 100%; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; color: var(--ink); }
   .map-fullscreen-close { position: absolute; z-index: 2; display: inline-flex; top: 12px; left: 12px; background: var(--sheet); }
   .map-highlight-mobile { position: absolute; z-index: 2; top: 12px; right: 12px; display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 10px; border: 1px solid var(--line); background: var(--sheet); color: var(--ink); font-size: 12px; font-weight: 600; }
   .map-highlight-mobile input { width: 16px; height: 16px; }
   .map-focus-mobile { top: 66px; }
   .mobile-expanded .map-controls { top: 120px; }
   .mobile-expanded .map-axis-label, .mobile-expanded .map-axis { display: none; }
-  .atlas-map .map-canvas-shell { height: calc(100% - var(--phone-reading-bar-height)); }
+  .atlas-map .map-canvas-host { height: calc(100% - var(--phone-reading-bar-height)); }
   .map-selected-mobile { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px; height: var(--phone-reading-bar-height); padding-inline: 10px; border-top: 1px solid var(--line); background: var(--sheet); }
   .map-reading-notes { display: grid; gap: 2px; min-width: 0; min-height: 44px; align-content: center; padding: 0; text-align: left; }
   .map-reading-notes:hover strong { color: var(--accent); }
@@ -301,12 +307,12 @@ main { padding: 0 44px 26px; }
   .map-selected-mobile strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--serif); font-size: 15px; font-weight: 400; }
   .map-selected-mobile .book-actions { flex-wrap: nowrap; gap: 6px; }
   .map-selected-mobile .book-actions button { padding: 0 8px; font-size: 12px; white-space: nowrap; }
-  .mobile-expanded .map-hint { display: none; }
-  .app-shell:has(.mobile-expanded) .progress-notice { bottom: calc(var(--phone-reading-bar-height) + 62px); }
+  .mobile-expanded .map-hint { top: 170px; bottom: auto; }
+  .mobile-expanded .progress-notice { bottom: calc(var(--phone-reading-bar-height) + 62px); }
   .mobile-expanded .expanded-paths { display: block; position: absolute; z-index: 4; bottom: calc(var(--phone-reading-bar-height) + 10px); left: 10px; max-width: calc(100vw - 20px); }
   .expanded-paths > button { padding-inline: 10px; border: 1px solid var(--line); background: var(--sheet); font-size: 12px; }
   .expanded-paths .path-chooser { position: absolute; bottom: 100%; left: 0; width: calc(100vw - 20px); max-height: min(60dvh, calc(100dvh - var(--phone-reading-bar-height) - 55px)); overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--line); }
-  .app-shell:has(.mobile-expanded .expanded-paths .path-chooser) .progress-notice { visibility: hidden; }
+  .mobile-expanded:has(.expanded-paths .path-chooser) .progress-notice { visibility: hidden; }
   .path-choice { gap: 8px; }
   .mobile-map-toggle { display: flex; padding: 0 0 12px; }
   .map-caption { font-size: 10px; gap: 12px; }
@@ -327,7 +333,6 @@ main { padding: 0 44px 26px; }
 
 .map-axis-label { fill: var(--muted); font-size: 11px; }
 .map-axis { stroke: var(--line); }
-.book-notes:focus { outline: none; }
 @media (max-width: 360px) {
   .map-controls .icon-button { width: 36px; }
   .map-controls .zoom-label { width: 28px; }
