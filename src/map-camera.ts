@@ -23,6 +23,15 @@ export function centreOnBook(book: Book): MapPosition {
   return { x: book.x + NODE_WIDTH / 2, y: book.y + NODE_HEIGHT / 2, zoom: 1 }
 }
 
+export function mapShowsBook(books: Book[], viewport: Viewport, view: MapPosition) {
+  const halfWidth = viewport.width / (2 * view.zoom)
+  const halfHeight = viewport.height / (2 * view.zoom)
+  return books.some((book) =>
+    book.x < view.x + halfWidth && book.x + NODE_WIDTH > view.x - halfWidth &&
+    book.y < view.y + halfHeight && book.y + NODE_HEIGHT > view.y - halfHeight
+  )
+}
+
 export function stepMapZoom(zoom: number, direction: 1 | -1, fitZoom: number) {
   const step = 1.28
   return direction === 1 ? Math.min(1.5, zoom * step) : Math.min(zoom, Math.max(fitZoom, zoom / step))

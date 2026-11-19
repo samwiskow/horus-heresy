@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { ArrowUpRight, BookOpen, Check, Download, Map, Minus, Plus, RotateCcw, Search, Target, X, ArrowRight, List, Crosshair, Info, Maximize, Minimize, SlidersHorizontal } from 'lucide-react'
 import { bookById, books, referenceCollections, type Book, type Connection } from './data'
 import { parseProgress, toggleFinished, type Progress } from './progress'
@@ -6,7 +6,7 @@ import { getConnections, getOptionBooks, getSequenceBookIds, isReference, readin
 import { BookType, bookTypes } from './book-types'
 import { getReachableBookIds, getNextSteps } from './logic'
 import { edgePath, getEdgeRoute, getConnectionFocus, layoutSourceFlow, NODE_WIDTH, NODE_HEIGHT } from './map-layout'
-import { centreOnBook, fitMap, stepMapZoom, type MapCamera } from './map-camera'
+import { centreOnBook, fitMap, mapShowsBook, stepMapZoom, type MapCamera } from './map-camera'
 
 type View = 'map' | 'library'
 type MapMode = 'map' | 'list'
@@ -93,7 +93,7 @@ const BookNode = memo(function BookNode({ book, selected, dimmed, readIds, curre
 
 function MapCanvas({
   selectedId, currentId, readIds, visibleBooks, highlightPaths, focusConnections, referenceLayout, recommendedIds,
-  onSelect, camera, atlasAnchor, onCameraChange, connections,
+  active, onSelect, camera, atlasAnchor, onCameraChange, connections, routeOnly,
 }: {
   selectedId: string | null
   currentId: string
@@ -102,6 +102,8 @@ function MapCanvas({
   highlightPaths: boolean
   focusConnections: boolean
   referenceLayout: boolean
+  routeOnly: boolean
+  active: boolean
   recommendedIds: Set<string>
   connections: Connection[]
   camera: MapCamera
@@ -110,6 +112,7 @@ function MapCanvas({
   onSelect: (book: Book, locate: boolean) => void
 }) {
   const shellRef = useRef<HTMLDivElement>(null)
+  const hadRouteFilter = useRef(routeOnly)
   const [size, setSize] = useState({ width: 1000, height: 600 })
   const drag = useRef<{ x: number; y: number; mapX: number; mapY: number } | null>(null)
   const { placedById, visibleConnections, paths } = useMemo(() => {
@@ -149,6 +152,22 @@ function MapCanvas({
     return () => observer.disconnect()
   }, [])
 
+  useLayoutEffect(() => {
+    if (!active || !('focus' in camera)) return
+    const shell = shellRef.current!
+    const fit = fitMap(visibleBooks, { width: shell.clientWidth, height: shell.clientHeight }, 40)
+    const book = selected ?? visibleBooks[0]
+    onCameraChange(fit.zoom === 1 || !book ? fit : centreOnBook(book))
+  }, [active, camera, visibleBooks, selected, onCameraChange])
+
+  useEffect(() => {
+    const enabledRouteFilter = routeOnly && !hadRouteFilter.current
+    hadRouteFilter.current = routeOnly
+    if (!enabledRouteFilter || focusConnections || mapShowsBook(visibleBooks, size, view)) return
+    const fallback = selected ?? placedById[currentId] ?? visibleBooks[0]
+    if (fallback) onCameraChange({ bookId: fallback.id })
+  }, [routeOnly, focusConnections, visibleBooks, size, view, selected, placedById, currentId, onCameraChange])
+
   const zoomBy = (direction: 1 | -1) => onCameraChange({ ...view, zoom: stepMapZoom(zoom, direction, fitted.zoom) })
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
     if (event.button !== 0 || (event.target as Element).closest('[role=button]')) return
@@ -175,7 +194,12 @@ function MapCanvas({
           <IconButton label="Show selected book" disabled={!selected} onClick={() => onCameraChange(centreOnBook(selected!))}><Crosshair size={15} /></IconButton>
           <IconButton label="Return to my book" disabled={!placedById[currentId]} onClick={() => onCameraChange(centreOnBook(placedById[currentId]))}><Target size={15} /></IconButton>
         </div>
-        <details className="map-key" onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus() } }}>
+        <details className="map-key" onKeyDown={(event) => {
+          if (event.key !== 'Escape' || !event.currentTarget.open) return
+          event.stopPropagation()
+          event.currentTarget.open = false
+          event.currentTarget.querySelector('summary')?.focus()
+        }}>
           <summary aria-label="Map key"><Info size={15} /><span>Map key</span></summary>
           <div>
             <p><b>Arrow:</b> a connection from the selected source.</p>
@@ -291,7 +315,6 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
   const mapRef = useRef<HTMLDivElement>(null)
   const mobileMapToggleRef = useRef<HTMLButtonElement>(null)
   const mapCloseRef = useRef<HTMLButtonElement>(null)
-  const mapNotesRef = useRef<HTMLButtonElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const notesTrigger = useRef<HTMLElement | null>(null)
   const source = readingOptions[readingOption]
@@ -344,7 +367,7 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
   const selectSearchResult = (book: Book) => {
     setSearch('')
     selectMapBook(book)
-    requestAnimationFrame(() => mapNotesRef.current?.focus({ preventScroll: true }))
+    requestAnimationFrame(() => mapRef.current?.querySelector<SVGElement>('.map-node.selected')?.focus())
   }
   const selectListBook = useCallback((book: Book) => { selectBook(book); openNotes() }, [selectBook, openNotes])
   const revealBook = (book: Book, showNotes = true) => {
@@ -405,7 +428,7 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
     <label className="route-checkbox"><input type="checkbox" checked={routeOnly} onChange={(event) => setRouteOnly(event.target.checked)} />Only my onward route</label>
     {mode === 'map' && <label className="route-checkbox highlight-checkbox"><input type="checkbox" checked={highlightPaths} onChange={(event) => setHighlightPaths(event.target.checked)} />Highlight next paths</label>}
   </>
-  const mapNotesAction = <button ref={mapNotesRef} className="quiet-action" onClick={openNotes}>Book notes</button>
+  const mapNotesAction = <button className="quiet-action" onClick={openNotes}>Book notes</button>
   const nextPathLinks = nextPaths.map((edge) => <button key={edge.to} className="text-action" onClick={() => selectMapBook(bookById[edge.to])}><ArrowRight size={14} /><span>{bookById[edge.to].title}{' '}<small>{edge.kind === 'sequence' ? 'Publisher’s listed order' : 'Reference arrow'}</small></span></button>)
   const readingDesk = (
     <section className="reading-desk" aria-label="Your reading route">
@@ -461,7 +484,7 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
             <span className="book-count" role="status">{focused ? `${focused.edges.length} direct ${focused.edges.length === 1 ? 'link' : 'links'}` : `${mapBooks.length} ${mapBooks.length === 1 ? 'work' : 'works'}`}</span>
             {!narrow && mapSelection && mapNotesAction}
           </div>
-          <MapCanvas referenceLayout={isReference(readingOption) && !focused} camera={focused ? focusCamera : atlasCamera} atlasAnchor={atlasAnchor} onCameraChange={focused ? setFocusCamera : setAtlasCamera} selectedId={mapSelection?.id ?? null} currentId={currentId} readIds={readIds} visibleBooks={mapBooks} highlightPaths={highlightPaths} focusConnections={Boolean(focused)} connections={mapConnections} recommendedIds={recommendedIds} onSelect={selectMapBook} />
+          <MapCanvas active={mode === 'map'} referenceLayout={isReference(readingOption) && !focused} routeOnly={routeOnly} camera={focused ? focusCamera : atlasCamera} atlasAnchor={atlasAnchor} onCameraChange={focused ? setFocusCamera : setAtlasCamera} selectedId={mapSelection?.id ?? null} currentId={currentId} readIds={readIds} visibleBooks={mapBooks} highlightPaths={highlightPaths} focusConnections={Boolean(focused)} connections={mapConnections} recommendedIds={recommendedIds} onSelect={selectMapBook} />
           <section className="map-selected" aria-label="Selected book">
             {mapSelection ? <>
               <div className="map-selected-heading">

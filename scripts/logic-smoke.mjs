@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { App } from '../src/App.tsx'
 import { bookById, books } from '../src/data.ts'
 import { getEdgeRoute, getConnectionFocus, layoutSourceFlow, NODE_WIDTH, NODE_HEIGHT, ROW_STEP } from '../src/map-layout.ts'
-import { centreOnBook, fitMap, stepMapZoom } from '../src/map-camera.ts'
+import { centreOnBook, fitMap, mapShowsBook, stepMapZoom } from '../src/map-camera.ts'
 import { getReachableBookIds, getNextSteps } from '../src/logic.ts'
 import { getConnections, reference, referenceBookByNodeId, referenceNodeByBookId, referencePositions, getOptionBooks, sagaBookIds, siegeBookIds, siegeBookNumbers } from '../src/reading-options.ts'
 import { parseProgress, toggleFinished } from '../src/progress.ts'
@@ -302,6 +302,16 @@ run('zooms gradually from the fitted atlas and stops at its true fit scale', () 
   assert.equal(stepMapZoom(next, -1, fitted.zoom), fitted.zoom)
   assert.equal(stepMapZoom(fitted.zoom, -1, fitted.zoom), fitted.zoom)
   assert.equal(stepMapZoom(1.4, 1, fitted.zoom), 1.5)
+})
+
+run('detects when a camera no longer shows any eligible book', () => {
+  const items = layoutSourceFlow(getOptionBooks('saga'), getConnections('saga'))
+  const early = centreOnBook(items[0])
+  const later = items.slice(-1)
+  const viewport = { width: 280, height: 276 }
+  assert.equal(mapShowsBook(items, viewport, early), true)
+  assert.equal(mapShowsBook(later, viewport, { ...early, zoom: 1.28 }), false)
+  assert.equal(mapShowsBook(later, viewport, centreOnBook(later[0])), true)
 })
 
 run('can centre Fulgrim at reading scale even when the full focus group is wide', () => {
