@@ -8,6 +8,7 @@ export const isReference = (option: ReadingOption) => option === 'reference' || 
 
 export const siegeBookIds = siege.books.map((book) => book.id)
 export const siegeBookNumbers = Object.fromEntries(siege.books.map((book) => [book.id, book.number]))
+export const siegeBookUrls = Object.fromEntries(siege.books.map((book) => [book.id, book.url]))
 
 export const sagaBookIds = [
   'horus-rising', 'false-gods', 'galaxy-in-flames', 'flight-eisenstein',
