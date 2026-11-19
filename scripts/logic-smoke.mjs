@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { App } from '../src/App.tsx'
 import { bookById, books } from '../src/data.ts'
 import { getEdgeRoute, getConnectionFocus, layoutSourceFlow, NODE_WIDTH, NODE_HEIGHT, ROW_STEP } from '../src/map-layout.ts'
+import { centreOnBook, fitMap, mapShowsBook, stepMapZoom } from '../src/map-camera.ts'
 import { getDirectionalBook, revealMapBook } from '../src/map-keyboard.ts'
 import { getReachableBookIds, getNextSteps, getSiegeHandoff } from '../src/logic.ts'
 import { getConnections, reference, referenceBookByNodeId, referenceNodeByBookId, referencePositions, getOptionBooks, sagaBookIds, siegeBookIds, siegeBookNumbers } from '../src/reading-options.ts'
@@ -202,7 +203,7 @@ run('exposes map and list tabs with matching accessible panels', () => {
   }
   assert.equal((page.match(/<select aria-label="Reading option"/g) || []).length, 1)
   assert.doesNotMatch(page, /aria-label="View"|The story atlas|How to read the map/)
-  assert.match(page, /<summary>Map key<\/summary>/)
+  assert.match(page, /<summary aria-label="Map key">/)
 })
 
 run('keeps one card in the map tab order', () => {
@@ -354,6 +355,35 @@ run('keeps reference arrows within the map rather than using a distant side gutt
     const route = getEdgeRoute(placed[edge.from], placed[edge.to], edges, items, true)
     for (const point of route) assert.ok(point.x >= left && point.x <= right && point.y >= top && point.y <= bottom, `${edge.from} → ${edge.to}`)
   }
+})
+
+run('zooms gradually from the fitted atlas and stops at its true fit scale', () => {
+  const items = layoutSourceFlow(getOptionBooks('reference'), getConnections('reference'), referencePositions)
+  const fitted = fitMap(items, { width: 350, height: 388 }, 22)
+  assert.ok(fitted.zoom > 0.03 && fitted.zoom < 0.05)
+  const next = stepMapZoom(fitted.zoom, 1, fitted.zoom)
+  assert.ok(next > fitted.zoom && next < 0.07)
+  assert.equal(stepMapZoom(next, -1, fitted.zoom), fitted.zoom)
+  assert.equal(stepMapZoom(fitted.zoom, -1, fitted.zoom), fitted.zoom)
+  assert.equal(stepMapZoom(1.4, 1, fitted.zoom), 1.5)
+})
+
+run('detects when a camera no longer shows any eligible book', () => {
+  const items = layoutSourceFlow(getOptionBooks('saga'), getConnections('saga'))
+  const early = centreOnBook(items[0])
+  const later = items.slice(-1)
+  const viewport = { width: 280, height: 276 }
+  assert.equal(mapShowsBook(items, viewport, early), true)
+  assert.equal(mapShowsBook(later, viewport, { ...early, zoom: 1.28 }), false)
+  assert.equal(mapShowsBook(later, viewport, centreOnBook(later[0])), true)
+})
+
+run('can centre Fulgrim at reading scale even when the full focus group is wide', () => {
+  const focused = getConnectionFocus(getConnections('reference'), 'fulgrim')
+  const items = layoutSourceFlow(books.filter((book) => focused.ids.has(book.id)), focused.edges)
+  const fulgrim = items.find((book) => book.id === 'fulgrim')
+  assert.ok(fitMap(items, { width: 1350, height: 675 }, 40).zoom < 0.5)
+  assert.deepEqual(centreOnBook(fulgrim), { x: fulgrim.x + NODE_WIDTH / 2, y: fulgrim.y + NODE_HEIGHT / 2, zoom: 1 })
 })
 
 run('keeps focused reference views compact', () => {
