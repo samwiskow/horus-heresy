@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { App } from '../src/App.tsx'
 import { bookById, books } from '../src/data.ts'
 import { getEdgeRoute, getConnectionFocus, layoutSourceFlow, NODE_WIDTH, NODE_HEIGHT, ROW_STEP } from '../src/map-layout.ts'
+import { getDirectionalBook, revealMapBook } from '../src/map-keyboard.ts'
 import { getReachableBookIds, getNextSteps } from '../src/logic.ts'
 import { getConnections, reference, referenceBookByNodeId, referenceNodeByBookId, referencePositions, getOptionBooks, sagaBookIds, siegeBookIds, siegeBookNumbers } from '../src/reading-options.ts'
 import { parseProgress, toggleFinished } from '../src/progress.ts'
@@ -181,6 +182,48 @@ run('exposes map and list tabs with matching accessible panels', () => {
   assert.equal((page.match(/<select aria-label="Reading option"/g) || []).length, 1)
   assert.doesNotMatch(page, /aria-label="View"|The story atlas|How to read the map/)
   assert.match(page, /<summary>Map key<\/summary>/)
+})
+
+run('keeps one card in the map tab order', () => {
+  const page = renderToStaticMarkup(createElement(App))
+  const cards = [...page.matchAll(/<g[^>]*class="map-node [^"]*"[^>]*>/g)].map(([card]) => card)
+  assert.equal(cards.length, 173)
+  assert.equal(cards.filter((card) => card.includes('tabindex="0"')).length, 1)
+  assert.match(cards.find((card) => card.includes('tabindex="0"')), /Horus Rising/)
+  assert.equal(cards.filter((card) => card.includes('tabindex="-1"')).length, 172)
+})
+
+run('reaches every reference card by moving in the four map directions', () => {
+  const items = getOptionBooks('reference').map((book) => ({ ...book, ...referencePositions[book.id] }))
+  const opening = items.find((book) => book.id === 'horus-rising')
+  assert.equal(getDirectionalBook(opening, items, 'ArrowRight').id, 'false-gods')
+  assert.equal(getDirectionalBook(opening, items, 'ArrowUp'), undefined)
+  const neighbors = new Map(items.map((book) => [book.id, ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']
+    .map((direction) => getDirectionalBook(book, items, direction)).filter(Boolean)]))
+  for (const book of items) {
+    const visited = new Set([book.id])
+    const queue = [book]
+    for (const current of queue) {
+      for (const next of neighbors.get(current.id)) {
+        if (visited.has(next.id)) continue
+        visited.add(next.id)
+        queue.push(next)
+      }
+    }
+    assert.equal(visited.size, items.length, book.title)
+  }
+})
+
+run('pans a focused plate clear of the notes and controls at its current zoom', () => {
+  const book = { ...bookById['horus-rising'], x: 680, y: 12 }
+  const view = { zoom: 1, pan: { x: 0, y: 0 } }
+  const canvas = { left: 0, top: 0, right: 800, bottom: 400 }
+  const notes = { left: 500, top: 0, right: 800, bottom: 400 }
+  const toolbar = { left: 230, top: 0, right: 600, bottom: 70 }
+  const next = revealMapBook(book, view, canvas, [notes, toolbar])
+  assert.equal(next.zoom, view.zoom)
+  assert.ok(book.x + next.pan.x + NODE_WIDTH < notes.left)
+  assert.ok(book.y + next.pan.y > toolbar.bottom)
 })
 
 run('routes all source arrows outside book plates', () => {

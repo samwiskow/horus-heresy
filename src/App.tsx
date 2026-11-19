@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { ArrowUpRight, BookOpen, Check, Download, Map, Minus, Plus, RotateCcw, Search, Target, X, ArrowRight, List } from 'lucide-react'
 import { bookById, books, referenceCollections, type Book, type Connection } from './data'
 import { parseProgress, toggleFinished, type Progress } from './progress'
 import { getConnections, getOptionBooks, getSequenceBookIds, isReference, readingOptions, referenceNodeByBookId, referencePositions, siegeBookNumbers, type ReadingOption } from './reading-options'
 import { BookType, bookTypes } from './book-types'
 import { getReachableBookIds, getNextSteps } from './logic'
+import { FocusDialog, restoreFocus, useMobileLayout } from './focus'
+import { getDirectionalBook, isMapDirection, revealMapBook, type MapView } from './map-keyboard'
 import { edgePath, getEdgeRoute, getConnectionFocus, layoutSourceFlow, NODE_WIDTH, NODE_HEIGHT } from './map-layout'
 
 type View = 'map' | 'library'
@@ -54,28 +57,46 @@ function StatusMark({ book, readIds, currentId }: { book: Book; readIds: Set<str
   return null
 }
 
-function BookNode({ book, selected, dimmed, readIds, currentId, recommended, onSelect }: { book: Book; selected: boolean; dimmed: boolean; readIds: Set<string>; currentId: string; recommended: boolean; onSelect: (book: Book) => void }) {
+function BookNode({ book, selected, active, zoom, dimmed, readIds, currentId, recommended, selectedDescription, onFocus, onKeyDown, onSelect }: {
+  book: Book
+  selected: boolean
+  active: boolean
+  zoom: number
+  dimmed: boolean
+  readIds: Set<string>
+  currentId: string
+  recommended: boolean
+  selectedDescription: string
+  onFocus: () => void
+  onKeyDown: (event: KeyboardEvent<SVGGElement>) => void
+  onSelect: () => void
+}) {
   const titleLines = splitTitle(book.shortTitle)
   const colour = referenceNodeByBookId[book.id]
   const { label: typeLabel, Icon: TypeIcon } = bookTypes[book.kind]
   const status = readIds.has(book.id) ? 'read' : currentId === book.id ? 'current' : recommended ? 'recommended' : ''
-  const onKeyDown = (event: KeyboardEvent<SVGGElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      onSelect(book)
-    }
-  }
+  const ringGap = 6 / zoom
   return (
     <g
       className={`map-node ${status} ${selected ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}`}
       transform={`translate(${book.x} ${book.y})`}
       role="button"
-      tabIndex={0}
-      aria-label={`${book.title}, ${typeLabel}, ${readIds.has(book.id) ? 'read' : currentId === book.id ? 'current book' : 'unread'}`}
+      tabIndex={active ? 0 : -1}
+      aria-describedby={selected ? selectedDescription : undefined}
+      aria-label={`${book.title}, ${typeLabel}, ${readIds.has(book.id) ? 'finished' : currentId === book.id ? 'currently reading' : 'unread'}`}
       data-book-id={book.id}
       data-book-kind={book.kind}
-      onClick={() => onSelect(book)}
-      onKeyDown={onKeyDown}
+      onClick={(event) => {
+        if (event.detail === 0) event.currentTarget.focus({ preventScroll: true })
+        onSelect()
+      }}
+      onFocus={onFocus}
+      onKeyDown={(event) => {
+        if ((event.key === 'Enter' || event.key === ' ') && !event.altKey && !event.ctrlKey && !event.metaKey) {
+          event.preventDefault()
+          if (!event.repeat) onSelect()
+        } else onKeyDown(event)
+      }}
     >
       {selected && <rect className="node-focus-ring" x="-7" y="-7" width={NODE_WIDTH + 14} height={NODE_HEIGHT + 14} rx="15" />}
       <title>{`${book.title} · ${typeLabel}`}</title>
@@ -87,6 +108,8 @@ function BookNode({ book, selected, dimmed, readIds, currentId, recommended, onS
       <text className="node-meta" x="35" y={NODE_HEIGHT - 11}>{typeLabel}{book.seriesNumber ? ` · ${String(book.seriesNumber).padStart(2, '0')}` : ''}</text>
       <StatusMark book={book} readIds={readIds} currentId={currentId} />
       {recommended && !readIds.has(book.id) && currentId !== book.id && <circle className="recommend-dot" cx={NODE_WIDTH - 31} cy={14} r="4" />}
+      <rect className="node-keyboard-ring" x={-ringGap} y={-ringGap} width={NODE_WIDTH + 2 * ringGap} height={NODE_HEIGHT + 2 * ringGap}
+        rx="14" vectorEffect="non-scaling-stroke" aria-hidden="true" />
     </g>
   )
 }
@@ -101,7 +124,7 @@ function fitCampaign(visibleBooks: Book[], size: { width: number; height: number
 }
 
 function MapCanvas({
-  selectedId, currentId, readIds, visibleBooks, highlightPaths, focusConnections, referenceLayout, recommendedIds, onSelect, focusRevision, connections,
+  selectedId, currentId, readIds, visibleBooks, highlightPaths, focusConnections, referenceLayout, recommendedIds, onSelect, focusRevision, connections, announcement, onDismissNotes,
 }: {
   selectedId: string | null
   currentId: string
@@ -114,19 +137,26 @@ function MapCanvas({
   recommendedIds: Set<string>
   connections: Connection[]
   onSelect: (book: Book) => void
+  announcement: string
+  onDismissNotes: () => void
 }) {
   const shellRef = useRef<HTMLDivElement>(null)
-  const [size, setSize] = useState({ width: 1000, height: 600 })
-  const [view, setView] = useState(() => fitCampaign(visibleBooks, size))
+  const svgRef = useRef<SVGSVGElement>(null)
+  const hintId = useId()
+  const selectionId = useId()
+  const [size, setSize] = useState({ width: 0, height: 0 })
+  const [view, setView] = useState<MapView>({ zoom: 1, pan: { x: 0, y: 0 } })
+  const [keyboardBookId, setKeyboardBookId] = useState<string>()
   const savedView = useRef(view)
-  const wasFocused = useRef(false)
-  const previousSize = useRef(size)
+  const previousLayout = useRef<{ size: typeof size; visibleKey: string; focusConnections: boolean } | null>(null)
+  const lastFocusRevision = useRef(0)
   const { zoom, pan } = view
   const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
-  const visibleKey = visibleBooks.map((book) => book.id).join('|')
+  const visibleKey = visibleBooks.map((book) => [book.id, book.x, book.y].join(':')).join('|')
   const visibleIds = new Set(visibleBooks.map((book) => book.id))
   const visibleConnections = connections.filter((edge) => visibleIds.has(edge.from) && visibleIds.has(edge.to))
   const placedById = Object.fromEntries(visibleBooks.map((book) => [book.id, book]))
+  const tabStop = [keyboardBookId, selectedId, currentId].find((id) => id && visibleIds.has(id)) ?? visibleBooks[0]?.id
   const paths = useMemo(() => Object.fromEntries(visibleConnections.map((edge) => [`${edge.from}:${edge.to}`, edgePath(getEdgeRoute(placedById[edge.from], placedById[edge.to], visibleConnections, visibleBooks, referenceLayout))])), [visibleKey, connections, referenceLayout])
   const focusId = highlightPaths ? selectedId : null
   const focusedBookIds = getFocusedBookIds(visibleConnections, focusId)
@@ -135,40 +165,85 @@ function MapCanvas({
     y: size.height / 2 - (book.y + NODE_HEIGHT / 2) * scale,
   })
 
-  useEffect(() => {
+  const revealFocus = (book: Book) => {
+    const svg = svgRef.current!
+    let bounds = svg.getBoundingClientRect()
+    if (!bounds.width || !bounds.height) return
+    const visibleHeight = () => Math.min(innerHeight, bounds.bottom) - Math.max(0, bounds.top)
+    if (visibleHeight() < Math.min(bounds.height * 0.6, NODE_HEIGHT * zoom + 20)) {
+      svg.scrollIntoView({ block: 'center', inline: 'nearest' })
+      bounds = svg.getBoundingClientRect()
+    }
+    const toMap = (rect: DOMRect | { left: number; top: number; right: number; bottom: number }) => ({
+      left: rect.left - bounds.left, top: rect.top - bounds.top, right: rect.right - bounds.left, bottom: rect.bottom - bounds.top,
+    })
+    const canvas = toMap({
+      left: Math.max(0, bounds.left), top: Math.max(0, bounds.top),
+      right: Math.min(document.documentElement.clientWidth, bounds.right), bottom: Math.min(innerHeight, bounds.bottom),
+    })
+    const overlays = [...(svg.closest('.atlas-map')?.querySelectorAll([
+      '.map-controls', '.map-hint', '.map-key[open] > div', '.map-fullscreen-close', '.map-highlight-mobile', '.map-selected-mobile',
+    ].join(',')) ?? [])].filter((element) => element.getClientRects().length).map((element) => toMap(element.getBoundingClientRect()))
+    const notes = document.querySelector('aside.book-notes')
+    if (notes) {
+      const notesRect = toMap(notes.getBoundingClientRect())
+      const withoutNotes = revealMapBook(book, view, canvas, overlays)
+      const withNotes = revealMapBook(book, view, canvas, [...overlays, notesRect])
+      if (withoutNotes && (!withNotes || withNotes.zoom < withoutNotes.zoom)) onDismissNotes()
+      else overlays.push(notesRect)
+    }
+    setView((current) => revealMapBook(book, current, canvas, overlays) ?? current)
+  }
+
+  useLayoutEffect(() => {
     const shell = shellRef.current!
-    const update = () => { if (shell.clientWidth && shell.clientHeight) setSize({ width: shell.clientWidth, height: shell.clientHeight }) }
+    const update = () => {
+      const { clientWidth: width, clientHeight: height } = shell
+      if (width && height) setSize((previous) => width === previous.width && height === previous.height ? previous : { width, height })
+    }
     const observer = new ResizeObserver(update)
     observer.observe(shell)
     update()
     return () => observer.disconnect()
   }, [])
-  useEffect(() => {
-    if (wasFocused.current) {
-      savedView.current = { ...savedView.current, pan: {
-        x: savedView.current.pan.x + (size.width - previousSize.current.width) / 2,
-        y: savedView.current.pan.y + (size.height - previousSize.current.height) / 2,
-      } }
-    }
-    previousSize.current = size
-    if (focusConnections) {
-      if (!wasFocused.current) savedView.current = view
+  useLayoutEffect(() => {
+    if (!size.width || !visibleBooks.length) return
+    const previous = previousLayout.current
+    previousLayout.current = { size, visibleKey, focusConnections }
+    const resizeView = (current: MapView) => previous ? { ...current, pan: {
+      x: current.pan.x + (size.width - previous.size.width) / 2,
+      y: current.pan.y + (size.height - previous.size.height) / 2,
+    } } : current
+    if (previous?.focusConnections) savedView.current = resizeView(savedView.current)
+    if (previous?.visibleKey === visibleKey && previous.focusConnections === focusConnections) {
+      setView(resizeView)
+    } else if (focusConnections) {
+      if (!previous?.focusConnections) savedView.current = resizeView(view)
       setView(fitCampaign(visibleBooks, size, 40))
-    } else if (wasFocused.current) {
+    } else if (previous?.focusConnections) {
       setView(savedView.current)
     } else {
       const fitted = fitCampaign(visibleBooks, size)
       const book = placedById[selectedId || currentId] || visibleBooks[0]
       setView(fitted.zoom < 0.6 ? { zoom: 0.9, pan: focusPan(book, 0.9) } : fitted)
     }
-    wasFocused.current = focusConnections
-  }, [visibleKey, focusConnections, size.width, size.height])
-  useEffect(() => {
-    if (focusRevision === 0) return
+    const focused = document.activeElement?.getAttribute('data-book-id')
+    if (focused && svgRef.current?.contains(document.activeElement) && placedById[focused]) revealFocus(placedById[focused])
+  }, [visibleKey, focusConnections, size])
+  useLayoutEffect(() => {
+    if (!size.width || lastFocusRevision.current === focusRevision) return
+    lastFocusRevision.current = focusRevision
     const book = placedById[selectedId || currentId]
-    if (!book) return
-    setView({ zoom: 0.9, pan: focusPan(book, 0.9) })
-  }, [focusRevision, size.width, size.height])
+    if (book) setView({ zoom: 0.9, pan: focusPan(book, 0.9) })
+  }, [focusRevision, size])
+
+  const moveFocus = (event: KeyboardEvent<SVGGElement>, book: Book) => {
+    if (!isMapDirection(event.key) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+    event.preventDefault()
+    const next = getDirectionalBook(book, visibleBooks, event.key)
+    if (next) svgRef.current?.querySelector<SVGGElement>('[data-book-id="' + CSS.escape(next.id) + '"]')?.focus({ preventScroll: true })
+    else revealFocus(book)
+  }
 
   const zoomBy = (step: number) => {
     setView(({ zoom, pan }) => {
@@ -196,8 +271,9 @@ function MapCanvas({
     <div className={`map-canvas-shell ${highlightPaths ? 'paths-highlighted' : ''} ${zoom < 0.3 ? 'map-overview' : ''}`} ref={shellRef}>
       <svg
         className="map-canvas"
-        viewBox={`0 0 ${size.width} ${size.height}`}
-        role="group" aria-label="Source connections"
+        ref={svgRef}
+        viewBox={`0 0 ${size.width || 1000} ${size.height || 600}`}
+        role="group" aria-label="Connection map cards" aria-describedby={hintId}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={stopDrag}
@@ -225,7 +301,11 @@ function MapCanvas({
             const dimmed = Boolean(focusId) && !active && !focusConnections
             return <g key={`${edge.from}-${edge.to}`}><path className="map-edge-clearance" d={paths[`${edge.from}:${edge.to}`]} /><path className={`map-edge ${active ? 'active' : ''} ${dimmed ? 'dimmed' : ''} ${edge.kind}`} d={paths[`${edge.from}:${edge.to}`]} markerEnd={`url(#${active ? 'arrowhead-active' : 'arrowhead'})`} /></g>
           })}
-          {visibleBooks.map((book) => <BookNode key={book.id} book={book} selected={selectedId === book.id} dimmed={Boolean(focusId) && !focusedBookIds.has(book.id)} readIds={readIds} currentId={currentId} recommended={recommendedIds.has(book.id)} onSelect={onSelect} />)}
+          {visibleBooks.map((book) => <BookNode key={book.id} book={book} selected={selectedId === book.id} active={tabStop === book.id}
+            zoom={zoom} selectedDescription={selectionId} dimmed={Boolean(focusId) && !focusedBookIds.has(book.id)}
+            readIds={readIds} currentId={currentId} recommended={recommendedIds.has(book.id)}
+            onFocus={() => { setKeyboardBookId(book.id); revealFocus(book) }}
+            onKeyDown={(event) => moveFocus(event, book)} onSelect={() => { setKeyboardBookId(book.id); onSelect(book) }} />)}
         </g>
       </svg>
       <div className="map-controls" aria-label="Map controls">
@@ -235,9 +315,11 @@ function MapCanvas({
         <span className="control-rule" />
         <button className="map-text-control" onClick={() => setView(fitCampaign(visibleBooks, size, focusConnections ? 40 : 80))}>Fit all</button>
         <IconButton label="Return to my book" disabled={!placedById[currentId]} onClick={() => setView({ zoom: 0.9, pan: focusPan(placedById[currentId], 0.9) })}><Target size={15} /></IconButton>
-        <details className="map-key" onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus() } }}><summary>Map key</summary><div><p><b>Arrow:</b> a connection from the selected source.</p><div className="type-key">{Object.keys(bookTypes).map((kind) => <BookType key={kind} kind={kind as Book['kind']} />)}</div><p><b>Card shape:</b> novels have rounded corners. Other works have a folded corner.</p><p><b>Colour mark:</b> the book’s colour in Daunt’s reference. Colours are not unique legion or story arc labels. Books absent from the reference have no mark.</p><p>All stories includes every node in the 2019 reference. Novels only hides other works; arrows never skip hidden steps.</p><p>Select a book to trace its paths. Open Book notes when you want more detail. Drag the Connection map, or use Book list. The reference opening flows left to right; the full reference keeps the original branch arrangement with more vertical space. Positions do not define story arcs or an additional reading order. Focus connections shows only direct incoming and outgoing links; Highlight next paths still marks outgoing arrows.</p></div></details>
+        <details className="map-key" onKeyDown={(event) => { if (event.key === 'Escape' && event.currentTarget.open) { event.preventDefault(); event.stopPropagation(); event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus() } }}><summary>Map key</summary><div><p><b>Arrow:</b> a connection from the selected source.</p><div className="type-key">{Object.keys(bookTypes).map((kind) => <BookType key={kind} kind={kind as Book['kind']} />)}</div><p><b>Card shape:</b> novels have rounded corners. Other works have a folded corner.</p><p><b>Colour mark:</b> the book’s colour in Daunt’s reference. Colours are not unique legion or story arc labels. Books absent from the reference have no mark.</p><p>All stories includes every node in the 2019 reference. Novels only hides other works; arrows never skip hidden steps.</p><p>Select a book to trace its paths. Open Book notes when you want more detail. Drag the Connection map, or use Book list. The reference opening flows left to right; the full reference keeps the original branch arrangement with more vertical space. Positions do not define story arcs or an additional reading order. Focus connections shows only direct incoming and outgoing links; Highlight next paths still marks outgoing arrows.</p></div></details>
       </div>
-      <div className="map-hint"><span className="drag-dot" /> Drag the map to scan the route</div>
+      <div className="map-hint" id={hintId}>Tab to the cards. Use arrow keys to move. Enter or Space selects.</div>
+      <span className="sr-only" id={selectionId}>Selected for Book notes</span>
+      <span className="sr-only" role="status">{announcement}</span>
     </div>
   )
 }
@@ -251,7 +333,31 @@ function ReadingActions({ book, readIds, currentId, onRead, onCurrent }: BookAct
   </div>
 }
 
-function BookNotes({ book, onSelect, onClose, ...actions }: BookActions & { book: Book; onSelect: (book: Book) => void; onClose: () => void }) {
+function BookNotes({ book, mobile, onSelect, onClose, ...actions }: BookActions & {
+  book: Book
+  mobile: boolean
+  onSelect: (book: Book) => void
+  onClose: (restore?: boolean) => void
+}) {
+  const titleRef = useRef<HTMLHeadingElement>(null)
+  useLayoutEffect(() => {
+    const title = titleRef.current!
+    title.closest('.book-notes')!.scrollTop = 0
+    title.focus({ preventScroll: true })
+  }, [book.id, mobile])
+  useEffect(() => {
+    if (mobile) return
+    const panel = titleRef.current!.closest('.book-notes')!
+    const dismissIfCovered = (event: FocusEvent) => {
+      const target = event.target
+      if (!(target instanceof Element) || panel.contains(target) || target.closest('.map-node')) return
+      const rect = target.getBoundingClientRect()
+      const notes = panel.getBoundingClientRect()
+      if (rect.width && rect.right > notes.left && rect.left < notes.right) onClose(false)
+    }
+    document.addEventListener('focusin', dismissIfCovered)
+    return () => document.removeEventListener('focusin', dismissIfCovered)
+  }, [mobile, onClose])
   const connections = getConnections(actions.readingOption)
   const source = readingOptions[actions.readingOption]
   const sourceSteps = getNextSteps(book.id, new Set(), actions.readingOption)
@@ -260,13 +366,13 @@ function BookNotes({ book, onSelect, onClose, ...actions }: BookActions & { book
   const labels = { reference: 'Reference arrow', sequence: 'Publisher’s listed order' }
   const referenceNode = referenceNodeByBookId[book.id]
   const collection = book.collectionNumber ? referenceCollections[book.collectionNumber] : undefined
-  return <aside id="book-notes" className="book-notes" tabIndex={-1} aria-label="Book notes">
-    <div className="notes-heading"><h2>Book notes</h2><IconButton label="Close book notes" onClick={onClose}><X size={18} /></IconButton></div>
+  const content = <>
+    <div className="notes-heading"><h2>Book notes</h2><IconButton label="Close book notes" onClick={() => onClose()}><X size={18} /></IconButton></div>
     <div className="book-reference">{actions.readingOption === 'siege' && siegeBookNumbers[book.id] ? `Siege book ${siegeBookNumbers[book.id]}` : book.seriesNumber ? `Book ${String(book.seriesNumber).padStart(2, '0')}` : 'Supporting story'} <BookType kind={book.kind} /></div>
-    <h3>{book.title}</h3>
+    <h3 ref={titleRef} tabIndex={-1} data-initial-focus>{book.title}</h3>
     {book.faction && <p className="faction-name">{book.faction}</p>}
-    <p className="book-status">{actions.readIds.has(book.id) ? <Check size={15} /> : <BookOpen size={15} />}{actions.readIds.has(book.id) ? 'Finished' : book.id === actions.currentId ? 'Currently reading' : 'Unread'}</p>
-    <ReadingActions book={book} {...actions} />
+    <p className="book-status" role={mobile ? 'status' : undefined}>{actions.readIds.has(book.id) ? <Check size={15} /> : <BookOpen size={15} />}{actions.readIds.has(book.id) ? 'Finished' : book.id === actions.currentId ? 'Currently reading' : 'Unread'}</p>
+    <ReadingActions book={book} {...actions} onCurrent={(id) => { actions.onCurrent(id); titleRef.current?.focus() }} />
     {collection && <p className="publication-note">{book.collectionNumber === 42 ? 'Adapted in' : 'Collected in'} {collection.bookId ? <button className="text-action" onClick={() => onSelect(bookById[collection.bookId!])}>{collection.title}</button> : <a href={referenceNode.sourceLink} target="_blank" rel="noreferrer">{collection.title} <ArrowUpRight size={12} /></a>} · Book {book.collectionNumber}. Completion is tracked separately.</p>}
     {book.publication && <p className="publication-note">{book.publication}</p>}
     {book.sourceId && <p className="publication-note">Source label: {referenceNode.title}. {book.metadataSourceUrl && <a href={book.metadataSourceUrl} target="_blank" rel="noreferrer">Publication record <ArrowUpRight size={12} /></a>}</p>}
@@ -275,15 +381,45 @@ function BookNotes({ book, onSelect, onClose, ...actions }: BookActions & { book
     {outgoing.length > 0 && <section className="connection-list"><h4>Where the story leads</h4>{outgoing.map((edge) => <button key={edge.to} onClick={() => onSelect(bookById[edge.to])}><span>{bookById[edge.to].title}<small>{labels[edge.kind]}</small></span><ArrowRight size={15} /></button>)}</section>}
     {sourceSteps.some((step) => !step.book) && <section className="connection-list"><h4>Steps in the original flowchart</h4>{sourceSteps.filter((step) => !step.book).map((step) => <a key={step.id} href={step.sourceUrl} target="_blank" rel="noreferrer">{step.title} <ArrowUpRight size={13} /></a>)}</section>}
     <p className="curation-note">No story arc is assigned in this catalogue. Connections follow <a href={source.sourceUrl} target="_blank" rel="noreferrer">{source.label}</a>. Missing steps are not joined across.</p>
-  </aside>
+  </>
+  return mobile
+    ? <FocusDialog label="Book notes" className="book-notes" onClose={onClose}>{content}</FocusDialog>
+    : <aside className="book-notes" aria-label="Book notes" onKeyDown={(event) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      event.preventDefault()
+      onClose()
+    }}>{content}</aside>
 }
 
-function BookList({ items, selectedId, onSelect, sequence = false, ...actions }: BookActions & { items: Book[]; selectedId: string; onSelect: (book: Book) => void; sequence?: boolean }) {
+function useBookNotes(fallback: () => HTMLElement | SVGElement | null) {
+  const [notesOpen, setNotesOpen] = useState(false)
+  const opener = useRef<HTMLElement | null>(null)
+  const openNotes = (trigger: HTMLElement) => {
+    opener.current = trigger
+    setNotesOpen(true)
+    if (notesOpen) requestAnimationFrame(() => document.querySelector<HTMLElement>('.book-notes [data-initial-focus]')?.focus())
+  }
+  const closeNotes = (restore = true) => {
+    setNotesOpen(false)
+    if (restore) requestAnimationFrame(() => restoreFocus(opener.current, fallback()))
+  }
+  return { notesOpen, openNotes, closeNotes }
+}
+
+function BookList({ items, selectedId, onSelect, mobile, sequence = false, ...actions }: BookActions & {
+  items: Book[]
+  selectedId: string
+  onSelect: (book: Book, trigger: HTMLButtonElement) => void
+  mobile: boolean
+  sequence?: boolean
+}) {
+  const statusPrefix = useId()
   const orderedIds = getSequenceBookIds(actions.readingOption)
   return <ol className="book-list">{items.map((book) => <li key={book.id} data-book-id={book.id} className={selectedId === book.id ? 'selected' : ''}>
     <span className="book-number" aria-label={sequence ? `List position ${orderedIds.indexOf(book.id) + 1}` : undefined}>{sequence ? String(orderedIds.indexOf(book.id) + 1).padStart(2, '0') : book.seriesNumber ? String(book.seriesNumber).padStart(2, '0') : '—'}</span>
-    <button className="list-book" aria-pressed={selectedId === book.id} onClick={() => onSelect(book)}><strong>{referenceNodeByBookId[book.id] && <svg className="reference-colour-mark" width="14" height="14" aria-hidden="true"><rect x="0.5" y="0.5" width="13" height="13" fill={referenceNodeByBookId[book.id].fill} stroke={referenceNodeByBookId[book.id].stroke} /></svg>}{book.title}</strong><span>{book.faction && `${book.faction} · `}<BookType kind={book.kind} />{actions.readingOption === 'siege' && siegeBookNumbers[book.id] ? ` · Siege book ${siegeBookNumbers[book.id]}` : ''}</span></button>
-    <span className="list-status">{actions.readIds.has(book.id) ? <><Check size={15} />Finished</> : book.id === actions.currentId ? <><BookOpen size={15} />Reading</> : 'Unread'}</span>
+    <button className="list-book" aria-haspopup={mobile ? 'dialog' : undefined}
+      aria-describedby={statusPrefix + book.id} onClick={(event) => onSelect(book, event.currentTarget)}><strong>{referenceNodeByBookId[book.id] && <svg className="reference-colour-mark" width="14" height="14" aria-hidden="true"><rect x="0.5" y="0.5" width="13" height="13" fill={referenceNodeByBookId[book.id].fill} stroke={referenceNodeByBookId[book.id].stroke} /></svg>}{book.title}</strong><span>{book.faction && `${book.faction} · `}<BookType kind={book.kind} />{actions.readingOption === 'siege' && siegeBookNumbers[book.id] ? ` · Siege book ${siegeBookNumbers[book.id]}` : ''}</span></button>
+    <span className="list-status" id={statusPrefix + book.id}>{actions.readIds.has(book.id) ? <><Check size={15} />Finished</> : book.id === actions.currentId ? <><BookOpen size={15} />Reading</> : 'Unread'}{selectedId === book.id && <span className="sr-only">. Selected for Book notes.</span>}</span>
     <button className="icon-button" aria-label={`${actions.readIds.has(book.id) ? 'Mark unread' : 'Mark finished'}: ${book.title}`} aria-pressed={actions.readIds.has(book.id)} onClick={() => actions.onRead(book.id)}>{actions.readIds.has(book.id) ? <RotateCcw size={17} /> : <Check size={17} />}</button>
   </li>)}</ol>
 }
@@ -295,12 +431,18 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
   const [highlightPaths, setHighlightPaths] = useState(true)
   const [focusConnections, setFocusConnections] = useState(false)
   const [fullMobileMap, setFullMobileMap] = useState(false)
-  const [notesOpen, setNotesOpen] = useState(false)
+  const [mapAnnouncement, setMapAnnouncement] = useState('')
   const [focusRevision, setFocusRevision] = useState(0)
-  const mapRef = useRef<HTMLDivElement>(null)
-  const mobileMapToggleRef = useRef<HTMLButtonElement>(null)
-  const mapCloseRef = useRef<HTMLButtonElement>(null)
-  const notesTrigger = useRef<HTMLElement | null>(null)
+  const mobile = useMobileLayout()
+  const mapExpanded = mobile && fullMobileMap
+  const mapSlot = useRef<HTMLDivElement>(null)
+  const mapOpener = useRef<HTMLElement | null>(null)
+  // Move the portal host between the inline map and dialog without remounting the canvas.
+  const [mapHost] = useState(() => typeof document === 'undefined' ? null : document.createElement('div'))
+  const activeTab = () => document.querySelector<HTMLElement>('.atlas-tabs [aria-selected="true"]')
+  const mapCard = (id: string) => mapHost?.querySelector<SVGGElement>('[data-book-id="' + CSS.escape(id) + '"]')
+  const { notesOpen, openNotes, closeNotes } = useBookNotes(() =>
+    document.querySelector<HTMLElement>('.mobile-expanded .path-notes-action') ?? activeTab())
   const source = readingOptions[readingOption]
   const connections = getConnections(readingOption)
   const nextSteps = getNextSteps(currentId, readIds, readingOption)
@@ -322,39 +464,66 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
   const mapConnections = focusConnections ? focused.edges : connections
   const visibleIds = new Set((focusConnections && mode === 'map' ? mapBooks : visibleBooks).map((book) => book.id))
   const nextPaths = connections.filter((edge) => edge.from === selectedId && visibleIds.has(edge.to))
-  const openNotes = () => {
-    if (!(document.activeElement as HTMLElement)?.closest('#book-notes')) notesTrigger.current = document.activeElement as HTMLElement
-    setNotesOpen(true)
-    requestAnimationFrame(() => document.getElementById('book-notes')?.focus())
+  const hasMap = mapBooks.length > 0
+  useLayoutEffect(() => {
+    if (mapSlot.current && mapHost) mapSlot.current.append(mapHost)
+  }, [mapExpanded, hasMap, mapHost])
+  useLayoutEffect(() => {
+    if (mobile || !fullMobileMap) return
+    setFullMobileMap(false)
+    if (!notesOpen) requestAnimationFrame(() => restoreFocus(mapOpener.current, mapCard(selectedId), activeTab()))
+  }, [mobile, fullMobileMap])
+
+  const openFullMobileMap = (trigger: HTMLElement) => {
+    mapOpener.current = trigger
+    setFullMobileMap(true)
   }
-  const closeNotes = () => { setNotesOpen(false); requestAnimationFrame(() => notesTrigger.current?.focus()) }
-  const closeFullMobileMap = () => { setFullMobileMap(false); requestAnimationFrame(() => mobileMapToggleRef.current?.focus()) }
-  const selectMapBook = (book: Book) => {
+  const closeFullMobileMap = () => {
+    setFullMobileMap(false)
+    requestAnimationFrame(() => restoreFocus(mapOpener.current, mapCard(selectedId), activeTab()))
+  }
+  const selectMapBook = (book: Book, focusCard = false) => {
     onSelect(book)
-    setNotesOpen(false)
+    setMapAnnouncement('Selected ' + book.title + '.')
+    closeNotes(false)
+    if (focusCard) requestAnimationFrame(() => restoreFocus(mapCard(book.id), activeTab()))
   }
-  const selectListBook = (book: Book) => { onSelect(book); openNotes() }
-  const revealBook = (book: Book, showNotes = true) => { if (readingOption === 'reference-novels' && book.kind !== 'novel') onOption('reference'); setSearch(''); setRouteOnly(false); if (!optionBooks.some((item) => item.id === book.id)) setFocusConnections(false); onSelect(book); setFocusRevision((value) => value + 1); if (showNotes) openNotes(); else requestAnimationFrame(() => document.querySelector('.list-view [data-book-id="' + book.id + '"]')?.scrollIntoView({ block: 'center' })) }
-  useEffect(() => {
-    const onEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      if (notesOpen) closeNotes()
-      else if (fullMobileMap) closeFullMobileMap()
-    }
-    document.addEventListener('keydown', onEscape)
-    return () => document.removeEventListener('keydown', onEscape)
-  }, [notesOpen, fullMobileMap])
-  useEffect(() => {
-    if (!fullMobileMap || !window.matchMedia('(max-width: 760px)').matches) return
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    mapCloseRef.current?.focus()
-    return () => { document.body.style.overflow = previousOverflow }
-  }, [fullMobileMap])
+  const selectListBook = (book: Book, trigger: HTMLButtonElement) => {
+    onSelect(book)
+    openNotes(trigger)
+  }
+  const revealBook = (book: Book, trigger?: HTMLElement) => {
+    if (readingOption === 'reference-novels' && book.kind !== 'novel') onOption('reference')
+    setSearch('')
+    setRouteOnly(false)
+    if (!optionBooks.some((item) => item.id === book.id)) setFocusConnections(false)
+    onSelect(book)
+    setFocusRevision((value) => value + 1)
+    if (trigger) openNotes(trigger)
+  }
+  const showOnMap = (book: Book, trigger: HTMLElement) => {
+    setMode('map')
+    closeNotes(false)
+    revealBook(book)
+    if (mobile) openFullMobileMap(trigger)
+    else requestAnimationFrame(() => restoreFocus(mapCard(book.id), activeTab()))
+  }
+
+  const canvas = <MapCanvas referenceLayout={isReference(readingOption) && !focusConnections} focusRevision={focusRevision}
+    selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={mapBooks} highlightPaths={highlightPaths}
+    focusConnections={focusConnections} connections={mapConnections} recommendedIds={new Set(recommendations.map((item) => item.book!.id))}
+    announcement={mapAnnouncement} onDismissNotes={() => closeNotes(false)} onSelect={selectMapBook} />
+  const mapSlotContent = <div className="map-canvas-host" ref={mapSlot}>{!mapHost && canvas}</div>
+  const notesButtonLabel = 'Book notes for ' + bookById[selectedId].title
+  const clearFilters = () => {
+    setSearch('')
+    setRouteOnly(false)
+    restoreFocus(activeTab())
+  }
   return <>
     <section className="reading-desk" aria-label="Your reading route">
-      <div className="current-reading"><div className="section-label"><BookOpen size={17} /><h2>{readIds.has(currentId) ? 'Last finished' : 'Reading now'}</h2></div><button className="book-heading" onClick={() => revealBook(bookById[currentId])}>{bookById[currentId].title}</button><p><BookType kind={bookById[currentId].kind} /></p><button className="text-action" onClick={() => onRead(currentId)}>{readIds.has(currentId) ? <RotateCcw size={15} /> : <Check size={15} />}{readIds.has(currentId) ? 'Mark unread' : 'Mark finished'}</button></div>
-      <div className="next-reading"><div className="section-label"><ArrowRight size={17} /><h2>{isReference(readingOption) ? 'Next source steps' : 'Read next'}</h2></div>{recommended?.book ? <><button className="book-heading" onClick={() => revealBook(recommended.book!)}>{recommended.title}</button><p>{recommended.explanation}</p><div className="next-actions"><button className="quiet-action" onClick={() => { onCurrent(recommended.book!.id); revealBook(recommended.book!) }}>Start reading <ArrowRight size={16} /></button><button className="text-action" onClick={() => { if (mode === 'list') setMode('map'); setFullMobileMap(true); revealBook(recommended.book!, false); requestAnimationFrame(() => mapRef.current?.scrollIntoView({ block: 'center' })) }}>Show on map</button></div></> : nextSteps.length ? <><p>Choose a source path. These choices have no app ranking.</p><ul className="source-steps">{nextSteps.map((step) => <li key={step.id}>{step.book ? <button className="text-action" onClick={() => revealBook(step.book!)}>{step.title}<ArrowRight size={14} /></button> : <a href={step.sourceUrl} target="_blank" rel="noreferrer">{step.title}<ArrowUpRight size={14} /><small>{step.explanation}</small></a>}</li>)}</ul></> : <><h3>{readingOption === 'siege' ? 'End of the numbered Siege series.' : readingOption === 'saga' ? 'End of the Saga selection.' : 'No next step is recorded here.'}</h3><p>{readingOption === 'siege' ? 'The main series ends at The End and the Death: Volume III. Earlier unfinished volumes remain in the list below; related stories are in the publisher’s catalogue.' : readingOption === 'saga' ? 'This selection stops at Slaves to Darkness. Any earlier unfinished books remain in the list below.' : 'Check the original flowchart for its full route and coverage.'}</p><a className="text-action" href={source.sourceUrl} target="_blank" rel="noreferrer">View source <ArrowUpRight size={14} /></a></>}</div>
+      <div className="current-reading"><div className="section-label"><BookOpen size={17} /><h2>{readIds.has(currentId) ? 'Last finished' : 'Reading now'}</h2></div><button className="book-heading" aria-haspopup={mobile ? 'dialog' : undefined} onClick={(event) => revealBook(bookById[currentId], event.currentTarget)}>{bookById[currentId].title}</button><p><BookType kind={bookById[currentId].kind} /></p><button className="text-action" onClick={() => onRead(currentId)}>{readIds.has(currentId) ? <RotateCcw size={15} /> : <Check size={15} />}{readIds.has(currentId) ? 'Mark unread' : 'Mark finished'}</button></div>
+      <div className="next-reading"><div className="section-label"><ArrowRight size={17} /><h2>{isReference(readingOption) ? 'Next source steps' : 'Read next'}</h2></div>{recommended?.book ? <><button className="book-heading" aria-haspopup={mobile ? 'dialog' : undefined} onClick={(event) => revealBook(recommended.book!, event.currentTarget)}>{recommended.title}</button><p>{recommended.explanation}</p><div className="next-actions"><button className="quiet-action" aria-haspopup={mobile ? 'dialog' : undefined} onClick={(event) => { onCurrent(recommended.book!.id); revealBook(recommended.book!, event.currentTarget) }}>Start reading <ArrowRight size={16} /></button><button className="text-action" aria-haspopup={mobile ? 'dialog' : undefined} onClick={(event) => showOnMap(recommended.book!, event.currentTarget)}>Show on map</button></div></> : nextSteps.length ? <><p>Choose a source path. These choices have no app ranking.</p><ul className="source-steps">{nextSteps.map((step) => <li key={step.id}>{step.book ? <button className="text-action" aria-haspopup={mobile ? 'dialog' : undefined} onClick={(event) => revealBook(step.book!, event.currentTarget)}>{step.title}<ArrowRight size={14} /></button> : <a href={step.sourceUrl} target="_blank" rel="noreferrer">{step.title}<ArrowUpRight size={14} /><small>{step.explanation}</small></a>}</li>)}</ul></> : <><h3>{readingOption === 'siege' ? 'End of the numbered Siege series.' : readingOption === 'saga' ? 'End of the Saga selection.' : 'No next step is recorded here.'}</h3><p>{readingOption === 'siege' ? 'The main series ends at The End and the Death: Volume III. Earlier unfinished volumes remain in the list below; related stories are in the publisher’s catalogue.' : readingOption === 'saga' ? 'This selection stops at Slaves to Darkness. Any earlier unfinished books remain in the list below.' : 'Check the original flowchart for its full route and coverage.'}</p><a className="text-action" href={source.sourceUrl} target="_blank" rel="noreferrer">View source <ArrowUpRight size={14} /></a></>}</div>
     </section>
     <h1 className="sr-only">Explore reading options</h1>
     <div className="atlas-tabs" role="tablist" aria-label="Explore views">
@@ -368,7 +537,7 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
       }}><Icon size={17} />{label}</button>)}
     </div>
     <section className="reading-option explore-reading-option" aria-label="Reading option">
-      <label className="select-field"><span>Reading option</span><select aria-label="Reading option" value={readingOption} onChange={(event) => { onOption(event.target.value as ReadingOption); setSearch(''); setRouteOnly(false); setFullMobileMap(false); setNotesOpen(false); setFocusConnections(false) }}>{Object.entries(readingOptions).map(([id, option]) => <option key={id} value={id}>{option.label}</option>)}</select></label>
+      <label className="select-field"><span>Reading option</span><select aria-label="Reading option" value={readingOption} onChange={(event) => { onOption(event.target.value as ReadingOption); setSearch(''); setRouteOnly(false); setFullMobileMap(false); closeNotes(false); setFocusConnections(false) }}>{Object.entries(readingOptions).map(([id, option]) => <option key={id} value={id}>{option.label}</option>)}</select></label>
       <p>{source.description} <a href={source.sourceUrl} target="_blank" rel="noreferrer">View source <ArrowUpRight size={13} /></a></p>
       {!isReference(readingOption) && <span className="option-progress">{getSequenceBookIds(readingOption).filter((id) => readIds.has(id)).length} / {optionBooks.length} {readingOption === 'siege' ? 'Siege volumes' : 'Saga books'} finished</span>}
     </section>
@@ -386,44 +555,48 @@ function Explore({ currentId, readIds, onRead, onCurrent, selectedId, onSelect, 
       {hiddenSteps.length > 0 && !focusConnections && <div className="hidden-stories"><span>{hiddenSteps.length} next {hiddenSteps.length === 1 ? 'step is' : 'steps are'} hidden by Novels only.</span><button className="text-action" onClick={() => onOption('reference')}>Show all stories <ArrowRight size={14} /></button></div>}
       {selectedSourceSteps.length > 0 && <div className="source-paths"><span>Selected work: unresolved source steps</span>{selectedSourceSteps.map((step) => <a key={step.id} href={step.sourceUrl} target="_blank" rel="noreferrer">{step.title} <ArrowUpRight size={13} /></a>)}</div>}
       <div role="tabpanel" id="view-panel-map" aria-labelledby="view-tab-map" tabIndex={0} hidden={mode !== 'map'}>
-        <div className="next-paths" aria-live="polite"><strong>Selected: {bookById[selectedId].title}</strong>{highlightPaths && (nextPaths.length ? <div>{nextPaths.map((edge) => <button key={edge.to} onClick={() => selectMapBook(bookById[edge.to])}><ArrowRight size={14} /><span>{bookById[edge.to].title}<small>{edge.kind === 'sequence' ? 'Publisher’s listed order' : 'Reference arrow'}</small></span></button>)}</div> : <span>No catalogue paths are visible. Check source steps and filters.</span>)}<button className="text-action path-notes-action" onClick={openNotes}>Book notes <ArrowRight size={15} /></button></div>
+        <div className="next-paths"><strong>Selected: {bookById[selectedId].title}</strong>{highlightPaths && (nextPaths.length ? <div>{nextPaths.map((edge) => <button key={edge.to} onClick={() => selectMapBook(bookById[edge.to], true)}><ArrowRight size={14} /><span>{bookById[edge.to].title}<small>{edge.kind === 'sequence' ? 'Publisher’s listed order' : 'Reference arrow'}</small></span></button>)}</div> : <span>No catalogue paths are visible. Check source steps and filters.</span>)}<button className="text-action path-notes-action" aria-label={notesButtonLabel} aria-haspopup={mobile ? 'dialog' : undefined} onClick={(event) => openNotes(event.currentTarget)}>Book notes <ArrowRight size={15} /></button></div>
         {focusConnections && <p className="focus-description">Direct links to and from the selected book. Filters apply to the full map. Turn off Focus connections to return to your map position.</p>}
-        {mapBooks.length === 0 ? <div className="empty-state"><h2>No books found</h2><p>Try another title, or clear the filters.</p><button className="quiet-action" onClick={() => { setSearch(''); setRouteOnly(false) }}>Clear filters</button></div> : <>
-          <button ref={mobileMapToggleRef} className="mobile-map-toggle text-action" aria-expanded={fullMobileMap} onClick={() => setFullMobileMap(!fullMobileMap)}><Map size={17} />{fullMobileMap ? 'Back to map' : 'Expand map'}</button>
-          <div ref={mapRef} className={`atlas-map ${fullMobileMap ? 'mobile-expanded' : ''}`}><button ref={mapCloseRef} className="map-fullscreen-close quiet-action" onClick={closeFullMobileMap}><Map size={17} />Back to map</button><label className="map-highlight-mobile"><input type="checkbox" checked={highlightPaths} onChange={(event) => setHighlightPaths(event.target.checked)} />Next paths</label><label className="map-highlight-mobile map-focus-mobile"><input type="checkbox" checked={focusConnections} disabled={!(isReference(readingOption) ? referenceBooks : optionBooks).some((book) => book.id === selectedId)} onChange={(event) => setFocusConnections(event.target.checked)} />Focus connections</label><MapCanvas referenceLayout={isReference(readingOption) && !focusConnections} focusRevision={focusRevision} selectedId={selectedId} currentId={currentId} readIds={readIds} visibleBooks={mapBooks} highlightPaths={highlightPaths} focusConnections={focusConnections} connections={mapConnections} recommendedIds={new Set(recommendations.map((item) => item.book!.id))} onSelect={selectMapBook} /><div className="map-selected-mobile"><div className="map-selected-heading"><span><small>Selected book</small><strong>{bookById[selectedId].title}</strong></span><button className="quiet-action" onClick={openNotes}>Book notes</button></div><div className="map-selected-branches">{highlightPaths ? <><small>Next</small>{nextPaths.length ? nextPaths.map((edge) => <button key={edge.to} onClick={() => selectMapBook(bookById[edge.to])}><ArrowRight size={13} />{bookById[edge.to].title}</button>) : <span>No visible next path</span>}</> : <span>Next paths hidden</span>}</div></div></div>
+        {!hasMap ? <div className="empty-state"><h2>No books found</h2><p>Try another title, or clear the filters.</p><button className="quiet-action" onClick={clearFilters}>Clear filters</button></div> : <>
+          <button className="mobile-map-toggle text-action" aria-haspopup="dialog" onClick={(event) => openFullMobileMap(event.currentTarget)}><Map size={17} />Expand map</button>
+          {mapExpanded ? <FocusDialog label="Connection map" className="atlas-map mobile-expanded" onClose={closeFullMobileMap}>
+            <button data-initial-focus className="map-fullscreen-close quiet-action" onClick={closeFullMobileMap}><Map size={17} />Back to map</button>
+            <label className="map-highlight-mobile"><input type="checkbox" checked={highlightPaths} onChange={(event) => setHighlightPaths(event.target.checked)} />Next paths</label>
+            <label className="map-highlight-mobile map-focus-mobile"><input type="checkbox" checked={focusConnections} disabled={!(isReference(readingOption) ? referenceBooks : optionBooks).some((book) => book.id === selectedId)} onChange={(event) => setFocusConnections(event.target.checked)} />Focus connections</label>
+            {mapSlotContent}
+            <div className="map-selected-mobile">
+              <div className="map-selected-heading"><span><small>Selected book</small><strong>{bookById[selectedId].title}</strong></span>
+                <button className="quiet-action path-notes-action" aria-label={notesButtonLabel} aria-haspopup="dialog" onClick={(event) => openNotes(event.currentTarget)}>Book notes</button>
+              </div>
+              <div className="map-selected-branches">{highlightPaths ? <><small>Next</small>{nextPaths.length ? nextPaths.map((edge) => <button key={edge.to} onClick={() => selectMapBook(bookById[edge.to], true)}><ArrowRight size={13} />{bookById[edge.to].title}</button>) : <span>No visible next path</span>}</> : <span>Next paths hidden</span>}</div>
+            </div>
+          </FocusDialog> : <div className="atlas-map">{mapSlotContent}</div>}
+          {mapHost && createPortal(canvas, mapHost)}
         </>}
         <div className="map-caption"><span><span className="status-sample selected" />Selected</span><span><BookOpen size={13} />Reading</span><span><Check size={13} />Finished</span><span className="caption-note">Select a book to trace its paths.</span></div>
       </div>
       <div role="tabpanel" id="view-panel-list" aria-labelledby="view-tab-list" tabIndex={0} hidden={mode !== 'list'}>
-        {visibleBooks.length === 0 ? <div className="empty-state"><h2>No books found</h2><p>Try another title, or clear the filters.</p><button className="quiet-action" onClick={() => { setSearch(''); setRouteOnly(false) }}>Clear filters</button></div> : <div className="list-view"><BookList sequence={!isReference(readingOption)} items={visibleBooks} selectedId={selectedId} onSelect={selectListBook} {...actions} /></div>}
+        {visibleBooks.length === 0 ? <div className="empty-state"><h2>No books found</h2><p>Try another title, or clear the filters.</p><button className="quiet-action" onClick={clearFilters}>Clear filters</button></div> : <div className="list-view"><BookList mobile={mobile} sequence={!isReference(readingOption)} items={visibleBooks} selectedId={selectedId} onSelect={selectListBook} {...actions} /></div>}
       </div>
-    </section>{notesOpen && <BookNotes book={bookById[selectedId]} onSelect={revealBook} onClose={closeNotes} {...actions} />}</div>
-    {readingOption !== 'siege' && <section className="reading-option siege-continuation" aria-label="Siege of Terra continuation"><h2>Siege of Terra</h2><p>The reference reaches The Solar War. Continue through Black Library’s numbered main series, including all three final volumes. <a href={readingOptions.siege.sourceUrl} target="_blank" rel="noreferrer">View publisher source <ArrowUpRight size={13} /></a></p><button className="quiet-action" onClick={() => { onOption('siege'); setSearch(''); setRouteOnly(false); setMode('list'); setFullMobileMap(false); setNotesOpen(false); requestAnimationFrame(() => document.getElementById('main')?.scrollIntoView({ block: 'start' })) }}>Explore Siege of Terra <ArrowRight size={16} /></button></section>}
+    </section>{notesOpen && <BookNotes book={bookById[selectedId]} mobile={mobile} onSelect={revealBook} onClose={closeNotes} {...actions} />}</div>
+    {readingOption !== 'siege' && <section className="reading-option siege-continuation" aria-label="Siege of Terra continuation"><h2>Siege of Terra</h2><p>The reference reaches The Solar War. Continue through Black Library’s numbered main series, including all three final volumes. <a href={readingOptions.siege.sourceUrl} target="_blank" rel="noreferrer">View publisher source <ArrowUpRight size={13} /></a></p><button className="quiet-action" onClick={() => { onOption('siege'); setSearch(''); setRouteOnly(false); setMode('list'); setFullMobileMap(false); closeNotes(false); requestAnimationFrame(() => document.getElementById('main')?.scrollIntoView({ block: 'start' })) }}>Explore Siege of Terra <ArrowRight size={16} /></button></section>}
   </>
 }
 
 function Collection({ selectedId, onSelect, ...actions }: BookActions & { selectedId: string; onSelect: (book: Book) => void }) {
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
-  const [notesOpen, setNotesOpen] = useState(false)
-  const notesTrigger = useRef<HTMLElement | null>(null)
-  const selectAndShowNotes = (book: Book) => {
+  const mobile = useMobileLayout()
+  const searchRef = useRef<HTMLInputElement>(null)
+  const { notesOpen, openNotes, closeNotes } = useBookNotes(() => searchRef.current)
+  const selectAndShowNotes = (book: Book, trigger: HTMLButtonElement) => {
     onSelect(book)
-    if (!(document.activeElement as HTMLElement)?.closest('#book-notes')) notesTrigger.current = document.activeElement as HTMLElement
-    setNotesOpen(true)
-    requestAnimationFrame(() => document.getElementById('book-notes')?.focus())
+    openNotes(trigger)
   }
-  const closeNotes = () => { setNotesOpen(false); requestAnimationFrame(() => notesTrigger.current?.focus()) }
-  useEffect(() => {
-    if (!notesOpen) return
-    const onEscape = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') closeNotes() }
-    document.addEventListener('keydown', onEscape)
-    return () => document.removeEventListener('keydown', onEscape)
-  }, [notesOpen])
   const items = books.filter((book) => (!query || `${book.title} ${book.faction}`.toLowerCase().includes(query.toLowerCase())) && (filter === 'all' || actions.readIds.has(book.id) === (filter === 'finished')))
   return <><div className="collection-heading"><h1>Your reading library.</h1><p>{`${actions.readIds.size} of ${books.length} works finished. Your progress stays in this browser.`}</p></div>
-    <div className="atlas-toolbar"><label className="search-field"><Search size={17} /><input aria-label="Search collection" placeholder="Find a title or legion" value={query} onChange={(event) => setQuery(event.target.value)} /></label><label className="select-field"><span>Status</span><select aria-label="Reading status" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">All works</option><option value="finished">Finished</option><option value="unread">Unread</option></select></label></div>
-    <div className="atlas-workspace"><section className="collection-books">{items.length === 0 ? <div className="empty-state"><h2>No books here yet</h2><p>Change the status filter or search to see more books.</p><button className="quiet-action" onClick={() => { setQuery(''); setFilter('all') }}>Show all books</button></div> : <BookList items={items} selectedId={selectedId} onSelect={selectAndShowNotes} {...actions} />}</section>{notesOpen && <BookNotes book={bookById[selectedId]} onSelect={selectAndShowNotes} onClose={closeNotes} {...actions} />}</div>
+    <div className="atlas-toolbar"><label className="search-field"><Search size={17} /><input ref={searchRef} aria-label="Search collection" placeholder="Find a title or legion" value={query} onChange={(event) => setQuery(event.target.value)} /></label><label className="select-field"><span>Status</span><select aria-label="Reading status" value={filter} onChange={(event) => setFilter(event.target.value)}><option value="all">All works</option><option value="finished">Finished</option><option value="unread">Unread</option></select></label></div>
+    <div className="atlas-workspace"><section className="collection-books">{items.length === 0 ? <div className="empty-state"><h2>No books here yet</h2><p>Change the status filter or search to see more books.</p><button className="quiet-action" onClick={() => { setQuery(''); setFilter('all') }}>Show all books</button></div> : <BookList mobile={mobile} items={items} selectedId={selectedId} onSelect={selectAndShowNotes} {...actions} />}</section>{notesOpen && <BookNotes book={bookById[selectedId]} mobile={mobile} onSelect={onSelect} onClose={closeNotes} {...actions} />}</div>
   </>
 }
 
@@ -440,7 +613,7 @@ export function App() {
   const onRead = (id: string) => { setUndo(progress); setProgress(toggleFinished(progress, id)); setNotice(`${bookById[id].title} marked ${readIds.has(id) ? 'unread' : 'finished'}.`) }
   const onCurrent = (id: string) => { setUndo(progress); setProgress({ ...progress, currentId: id }); setSelectedId(id); setNotice(`Now reading ${bookById[id].title}.`) }
   const onOption = (option: ReadingOption) => { setProgress((saved) => ({ ...saved, readingOption: option })); setNotice(`Reading option: ${readingOptions[option].label}.`) }
-  const onSelect = (book: Book) => { setSelectedId(book.id); setNotice(`Selected: ${book.title}.`) }
+  const onSelect = (book: Book) => setSelectedId(book.id)
   const exportRoute = () => { const url = URL.createObjectURL(new Blob([JSON.stringify(progress, null, 2)], { type: 'application/json' })); const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'heresy-pathfinder-route.json'; anchor.click(); URL.revokeObjectURL(url); setNotice('Reading progress exported.') }
   return <div className="app-shell"><a className="skip-link" href="#main">Skip to content</a><header className="topbar"><button className="brand-lockup" onClick={() => setView('map')} aria-label="Pathfinder home"><BookOpen size={25} strokeWidth={1.3} /><span>Pathfinder<small>A Horus Heresy reading companion</small></span></button><nav className="primary-nav" aria-label="Primary navigation">{([['map', 'Explore'], ['library', 'My library']] as const).map(([id, label]) => <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => setView(id)}>{label}</button>)}</nav><div className="header-progress"><span>{readIds.size} / {books.length} finished</span><progress aria-label="Works finished" value={readIds.size} max={books.length} /></div></header>
     <main id="main">{storageError && <div className="storage-error" role="alert">Your browser could not save progress. Keep this page open and <button onClick={exportRoute}>export your progress</button>.</div>}{view === 'map' ? <Explore readingOption={progress.readingOption} onOption={onOption} selectedId={selectedId} onSelect={onSelect} currentId={progress.currentId} readIds={readIds} onRead={onRead} onCurrent={onCurrent} /> : <Collection readingOption={progress.readingOption} selectedId={selectedId} onSelect={onSelect} currentId={progress.currentId} readIds={readIds} onRead={onRead} onCurrent={onCurrent} />}
