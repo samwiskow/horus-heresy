@@ -175,7 +175,7 @@ Book titles and page titles use the serif. Navigation, metadata, descriptions, a
 
 The shell has a maximum width (1800px). Desktop content uses generous side margins. Explore starts with a compact reading route, then gives the map the full content width and a height tied to the viewport. At (1100px), margins reduce to (28px) and toolbars wrap. Book notes open in a temporary side panel from the Book notes action or a book index, so the map and book index retain their full width.
 
-At (760px), navigation moves below the brand and content becomes one column. Connection map opens first, with Book list available through a visible tab; Expand map opens a screen-height map with a clear return to the inline map and a selected-book bar. Book notes cover the screen after the Book notes action or list selection and can be closed to return to the map or list. My library uses two columns on desktop and one on mobile.
+At (760px), navigation moves below the brand and content becomes one column. Connection map opens first, with Book list available through a visible tab. Expand map opens a screen-height map with a clear return to the inline map. Both phone map views use a 56px reading bar with one row for the selected title and progress actions. The title opens Book notes. Book notes cover the screen on mobile and can be closed to return to the map or list. My library uses two columns on desktop and one on mobile.
 
 Content groups use rules and space rather than separate cards for each item. Lists align book number, title, state, and action in columns. Preserve room for long titles and wrapping actions.
 
@@ -193,7 +193,7 @@ Primary and quiet actions and select inputs have small corners. Other sections a
 
 Actions are plain and explicit. Primary actions use red with sheet-coloured text. Quiet actions use a rule border; hover changes the border and text to red. Text actions have no enclosing surface and gain an underline on hover. Primary and quiet actions have a minimum height (44px).
 
-Keyboard focus uses a red outline (2px) with an offset (4px). Disabled actions use disabled paper and muted text. Icon actions normally occupy (44px); the mobile list currently uses a narrower width (38px).
+Keyboard focus uses a red outline (2px) with an offset (4px). Disabled actions use disabled paper and muted text. Icon actions normally occupy (44px). The reading bar and list use visible text labels and 44px minimum control heights.
 
 ### Inputs / Fields
 
