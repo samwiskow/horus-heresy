@@ -277,6 +277,13 @@ function MapCanvas({
     if (active && id && svgRef.current?.contains(target) && placedById[id]) revealFocus(placedById[id])
   }, [active, size])
 
+  useLayoutEffect(() => {
+    const pan = drag.current
+    if (!pan || pan.camera === camera) return
+    drag.current = null
+    worldRef.current!.style.transform = mapTransform(view)
+  }, [camera, view])
+
   const zoomBy = (direction: 1 | -1) => onCameraChange({ ...view, zoom: stepMapZoom(zoom, direction, fitted.zoom) })
   const rememberPointerBook = (target: EventTarget) => {
     pointerBook.current = (target as Element).closest('.map-node')?.getAttribute('data-book-id') ?? null
