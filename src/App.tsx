@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { ArrowUpRight, BookOpen, Check, Download, Map, Minus, Plus, RotateCcw, Search, Target, X, ArrowRight, List } from 'lucide-react'
 import { bookById, books, referenceCollections, type Book, type Connection } from './data'
 import { parseProgress, toggleFinished, type Progress } from './progress'
@@ -122,6 +122,7 @@ function MapCanvas({
   const shellRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ width: 1000, height: 600 })
   const [view, setView] = useState(() => fitCampaign(visibleBooks, size))
+  const [pageReveal, setPageReveal] = useState<MapReveal | null>(null)
   const savedView = useRef(view)
   const wasFocused = useRef(false)
   const previousSize = useRef(size)
@@ -185,13 +186,16 @@ function MapCanvas({
           ? current : { zoom: 0.9, pan: focusPan(book, 0.9) }
       })
     }
+    if (reveal.kind !== 'notes') setPageReveal(reveal)
     onRevealHandled()
-    if (reveal.kind !== 'notes') requestAnimationFrame(() => {
-      const card = shell.querySelector<SVGGElement>(`[data-book-id="${book.id}"]`)
-      if (reveal.kind === 'path') card?.focus({ preventScroll: true })
-      card?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-    })
   }, [reveal, visibleKey, size.width, size.height, focusConnections])
+
+  useLayoutEffect(() => {
+    if (!pageReveal) return
+    const card = shellRef.current?.querySelector<SVGGElement>(`[data-book-id="${pageReveal.id}"]`)
+    if (pageReveal.kind === 'path') card?.focus({ preventScroll: true })
+    card?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [pageReveal])
 
   const zoomBy = (step: number) => {
     setView(({ zoom, pan }) => {
